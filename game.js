@@ -35,7 +35,7 @@ const abilityCooldownDurations = {
   "Sparkly Heal": 3,
   "Berry Shield": 12,
   "Stinky Breath": 3,
-  "Void Barrage": 15,
+  "Void Barrage": 5,
   "Shadow Step": 5,
   "Sausage Rain": 5,
   "Inner Light": 1,
