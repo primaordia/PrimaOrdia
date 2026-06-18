@@ -2539,6 +2539,12 @@ function castInnerLight(hero) {
     ally.hp = Math.min(ally.maxHp, ally.hp + 25);
     affected += 1;
   });
+  enemies().forEach((enemy) => {
+    if (enemy.mesh.position.distanceTo(hero.mesh.position) > 3.5) return;
+    enemy.hp -= 25;
+    flash(enemy.mesh.position, 0xfff0a6);
+    affected += 1;
+  });
   flash(hero.mesh.position, 0xfff0a6);
   log(`${hero.name} used Inner Light.`);
   return affected > 0;
