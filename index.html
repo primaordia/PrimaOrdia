@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Prima Ordia Prototype</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="game-shell">
+      <section class="topbar" aria-label="Game status">
+        <div>
+          <p class="eyebrow">Prima command</p>
+          <h1>Prima Ordia</h1>
+        </div>
+        <div class="resources">
+          <span id="gold">Gold 0</span>
+          <span id="wave">Mission 1</span>
+        </div>
+      </section>
+
+      <section class="scene" aria-label="3D battlefield">
+        <canvas id="battlefield" aria-label="3D real-time strategy battlefield"></canvas>
+      </section>
+
+      <div class="countdown-overlay" id="countdownOverlay" aria-live="polite"></div>
+
+      <section class="hud" aria-label="Battle controls">
+        <div class="squad" id="squad"></div>
+        <div class="action-panel">
+          <div>
+            <p class="eyebrow">Selected</p>
+            <h2 id="selectedName">Choose a hero</h2>
+            <div class="abilities-panel" id="abilitiesPanel" aria-label="Hero abilities"></div>
+            <p id="selectedStats">Tap a hero, then tap the field to move.</p>
+          </div>
+          <div class="actions">
+            <button id="upgradeBtn" type="button">Upgrade</button>
+            <button id="rallyBtn" type="button">Rally</button>
+            <button id="restartBtn" type="button">Restart</button>
+          </div>
+        </div>
+        <p class="log" id="log">Select a hero. Tap ground to move, tap enemies to focus fire.</p>
+      </section>
+    </main>
+
+    <script type="module" src="game.js"></script>
+  </body>
+</html>
