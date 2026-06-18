@@ -1460,9 +1460,9 @@ function update(dt) {
     syncUi();
   }
 
-  if (heroes(true).length === 0) {
+  if (heroes(true).length > 0 && heroes(true).every((hero) => hero.asleep || hero.hp <= 0)) {
     state = "lost";
-    log("The squad fell. Restarting...");
+    log("All heroes are asleep. Restarting...");
     autoRestartTimeout = window.setTimeout(resetGame, 2200);
   }
 }
