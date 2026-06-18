@@ -73,6 +73,7 @@ let highlightedMedkit = null;
 let autoRestartTimeout = null;
 let uiRefreshTimer = 0;
 let actionMenuOpen = false;
+let targetingAbility = null;
 
 const heroTemplates = [
   {
@@ -1118,6 +1119,7 @@ function resetGame() {
   missionCountdown = 0;
   missionPending = false;
   medkitSpawnTimer = 0;
+  targetingAbility = null;
   uiRefreshTimer = 0;
   countdownOverlayEl.textContent = "";
   countdownOverlayEl.classList.remove("show");
@@ -1670,8 +1672,6 @@ function updateUnit(unit, dt) {
 
   if (unit.side === "enemy" && target) {
     moveTo(unit, target.mesh.position, dt);
-  } else if (unit.side === "hero" && directTarget && !targetInRange) {
-    moveTo(unit, target.mesh.position, dt);
   } else {
     moveTo(unit, unit.targetPoint, dt);
   }
@@ -2055,6 +2055,7 @@ function onPointerDown(event) {
 
   const hitUnit = unitFromPointerEvent(event);
   if (hitUnit) {
+    if (hitUnit.side === "enemy" && castTargetedAbilityAt(hitUnit.mesh.position)) return;
     if (hitUnit.side === "hero") {
       if (hitUnit.asleep) {
         selectHero(hitUnit.id);
@@ -2073,7 +2074,10 @@ function onPointerDown(event) {
   raycaster.setFromCamera(pointer, camera);
 
   const hitGround = raycaster.intersectObject(ground)[0];
-  if (hitGround) commandMove(hitGround.point);
+  if (hitGround) {
+    if (castTargetedAbilityAt(hitGround.point)) return;
+    commandMove(hitGround.point);
+  }
 }
 
 function unitFromPointerEvent(event) {
@@ -2173,7 +2177,8 @@ function chooseAbility(heroId, ability) {
     return;
   }
   if (ability === "Star Shot") {
-    if (castStarShot(hero)) startAbilityCooldown(hero, ability);
+    targetingAbility = { heroId: hero.id, ability };
+    log("Tap an enemy or location for Star Shot.");
     syncUi();
     return;
   }
@@ -2223,7 +2228,7 @@ function castFairyDust(hero) {
 }
 
 function castSolarBurst(hero) {
-  const primaryTarget = nearest(hero, enemies());
+  const primaryTarget = targetEnemy(hero) ?? nearest(hero, enemies());
   if (!primaryTarget) {
     log("No enemies for Solar Burst.");
     return false;
@@ -2276,20 +2281,60 @@ function castSparklyHeal(hero) {
   return affected > 0;
 }
 
-function castStarShot(hero) {
-  const target = enemies()
-    .filter((enemy) => enemy.mesh.position.distanceTo(hero.mesh.position) <= 5)
-    .sort((a, b) => a.mesh.position.distanceTo(hero.mesh.position) - b.mesh.position.distanceTo(hero.mesh.position))[0];
-
-  if (!target) {
-    log("No enemy in Star Shot range.");
+function castTargetedAbilityAt(point) {
+  if (!targetingAbility) return false;
+  const hero = units.find((unit) => unit.id === targetingAbility.heroId);
+  if (!hero || hero.asleep || hero.hp <= 0) {
+    targetingAbility = null;
     return false;
   }
 
-  target.hp -= 100;
-  starShotArrow(hero.mesh.position, target.mesh.position);
-  log(`${hero.name} fired Star Shot.`);
+  if (targetingAbility.ability === "Star Shot") {
+    if (castStarShotAt(hero, point)) {
+      startAbilityCooldown(hero, "Star Shot");
+      targetingAbility = null;
+      syncUi();
+    }
+    return true;
+  }
+
+  return false;
+}
+
+function castStarShotAt(hero, point) {
+  const maxRange = 5;
+  const impact = new THREE.Vector3(point.x, 0, point.z);
+  const from = hero.mesh.position.clone().setY(0);
+  const offset = impact.clone().sub(from);
+  const distance = offset.length();
+  if (distance > maxRange && distance > 0) {
+    offset.normalize().multiplyScalar(maxRange);
+    impact.copy(from).add(offset);
+  }
+
+  face(hero, impact);
+  const affected = enemies().filter((enemy) => enemy.mesh.position.distanceTo(impact) <= 0.5);
+  affected.forEach((enemy) => {
+    enemy.hp -= 100;
+    flash(enemy.mesh.position, 0xf1d34f);
+  });
+  starTargetCircle(impact);
+  starShotArrow(hero.mesh.position, impact);
+  log(affected.length ? `${hero.name} fired Star Shot.` : `${hero.name} fired Star Shot at the target.`);
   return true;
+}
+
+function starTargetCircle(position) {
+  const target = new THREE.Mesh(
+    new THREE.RingGeometry(0.38, 0.52, 32),
+    new THREE.MeshBasicMaterial({ color: 0xff2f2f, transparent: true, opacity: 0.95, side: THREE.DoubleSide })
+  );
+  target.rotation.x = -Math.PI / 2;
+  target.position.set(position.x, 0.14, position.z);
+  target.userData.life = 0.75;
+  target.userData.kind = "star-target";
+  scene.add(target);
+  markers.push(target);
 }
 
 function castBerryShield(hero) {
@@ -2323,7 +2368,7 @@ function castShadowStep(hero) {
 }
 
 function castFlameBreath(hero) {
-  const primaryTarget = nearest(hero, enemies());
+  const primaryTarget = targetEnemy(hero) ?? nearest(hero, enemies());
   if (!primaryTarget) {
     log("No enemies for Flame Breath.");
     return false;
@@ -2353,7 +2398,7 @@ function castFlameBreath(hero) {
 
 function castSausageRain(hero) {
   const foes = enemies();
-  const target = foes.find((enemy) => enemy.id === hero.target)
+  const target = targetEnemy(hero)
     ?? foes.sort((a, b) => a.mesh.position.distanceTo(hero.mesh.position) - b.mesh.position.distanceTo(hero.mesh.position))[0];
 
   if (!target) {
@@ -2370,6 +2415,10 @@ function castSausageRain(hero) {
   sausageRain(target.mesh.position);
   log(`${hero.name} called Sausage Rain on ${affected.length} enemy${affected.length === 1 ? "" : "ies"}.`);
   return affected.length > 0;
+}
+
+function targetEnemy(hero) {
+  return enemies().find((enemy) => enemy.id === hero.target) ?? null;
 }
 
 function starShotArrow(from, to) {
@@ -2465,9 +2514,10 @@ function focusEnemy(enemyId) {
   const enemy = units.find((unit) => unit.id === enemyId);
   if (!hero || hero.asleep || hero.hp <= 0 || !enemy || enemy.hp <= 0) return;
   hero.target = enemy.id;
-  hero.targetPoint.copy(enemy.mesh.position);
+  hero.targetPoint.copy(hero.mesh.position);
+  face(hero, enemy.mesh.position);
   showNamePopup(enemy);
-  log(`${hero.name} targeting ${enemy.name}.`);
+  log(`${hero.name} targeting ${enemy.name}. Choose an ability.`);
 }
 
 function commandMove(point) {
@@ -2809,11 +2859,14 @@ function syncUi() {
         cooldown > 0 ? "cooling" : ""
       ].filter(Boolean).join(" ");
       button.innerHTML = `
-        <span>${ability}</span>
+        <span class="ability-label">${ability}</span>
         ${cooldown > 0 ? `<span class="ability-cooldown">${Math.ceil(cooldown)}</span>` : ""}
       `;
       button.disabled = state !== "playing" || hero.asleep || cooldown > 0;
-      button.addEventListener("click", () => chooseAbility(hero.id, ability));
+      button.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        chooseAbility(hero.id, ability);
+      });
       abilitiesPanelEl.appendChild(button);
     });
   }
@@ -2833,7 +2886,10 @@ function syncUi() {
       ${unit.asleep ? `<span class="sleep-mark">ZZZ</span>` : ""}
       <small>${unit.name}</small>
     `;
-    avatar.addEventListener("click", () => selectHero(unit.id));
+    avatar.addEventListener("click", () => {
+      selectHero(unit.id);
+      if (unit.asleep) payHeroUpkeep(unit.id);
+    });
     heroDockEl.appendChild(avatar);
 
     const card = document.createElement("button");
@@ -2847,7 +2903,10 @@ function syncUi() {
         <span class="bar"><span style="width:${Math.max(0, unit.hp / unit.maxHp) * 100}%"></span></span>
       </span>
     `;
-    card.addEventListener("click", () => selectHero(unit.id));
+    card.addEventListener("click", () => {
+      selectHero(unit.id);
+      if (unit.asleep) payHeroUpkeep(unit.id);
+    });
     squadEl.appendChild(card);
   });
 }

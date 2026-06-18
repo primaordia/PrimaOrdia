@@ -333,7 +333,18 @@ canvas {
   font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
+  cursor: pointer;
   touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ability-btn:disabled {
+  cursor: default;
+}
+
+.ability-label {
+  position: relative;
+  z-index: 1;
 }
 
 .ability-btn.ready {
@@ -351,12 +362,16 @@ canvas {
 .ability-cooldown {
   position: absolute;
   inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
   display: grid;
   place-items: center;
-  background: rgba(8, 10, 9, 0.78);
+  border-radius: inherit;
+  background: rgba(8, 10, 9, 0.82);
   color: #f1d34f;
   font-weight: 900;
-  font-size: 16px;
+  font-size: 18px;
   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
 }
 
