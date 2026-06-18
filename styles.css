@@ -308,9 +308,13 @@ canvas {
 }
 
 .action-panel {
+  display: block;
+}
+
+.ability-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
 }
 
@@ -424,11 +428,22 @@ canvas {
 }
 
 .log {
+  position: fixed;
+  left: 50%;
+  bottom: 366px;
+  z-index: 8;
+  max-width: min(560px, calc(100vw - 32px));
   min-height: 22px;
-  width: 100%;
+  padding: 4px 10px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(229, 234, 218, 0.14);
+  border-radius: 8px;
+  background: rgba(18, 23, 20, 0.76);
+  backdrop-filter: blur(8px);
   color: var(--muted);
   font-size: 14px;
   text-align: center;
+  pointer-events: none;
 }
 
 @media (max-width: 560px) {
@@ -471,11 +486,6 @@ canvas {
     font-size: 11px;
   }
 
-  .action-panel {
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-
   .actions {
     display: flex;
   }
@@ -504,6 +514,7 @@ canvas {
   }
 
   .log {
+    bottom: 322px;
     font-size: 13px;
   }
 }
@@ -582,11 +593,6 @@ canvas {
     font-size: 10px;
   }
 
-  .action-panel {
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-
   .actions {
     display: flex;
     gap: 6px;
@@ -598,6 +604,7 @@ canvas {
   }
 
   .log {
+    bottom: 322px;
     font-size: 13px;
   }
 }
@@ -609,6 +616,10 @@ canvas {
 
   .hero-dock {
     bottom: 218px;
+  }
+
+  .log {
+    bottom: 310px;
   }
 
   .topbar {

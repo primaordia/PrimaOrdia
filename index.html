@@ -24,6 +24,7 @@
       </section>
 
       <div class="countdown-overlay" id="countdownOverlay" aria-live="polite"></div>
+      <p class="log" id="log">Select a hero. Tap ground to move, tap enemies to focus fire.</p>
       <div class="hero-dock" id="heroDock" aria-label="Hero quick select"></div>
 
       <section class="hud" aria-label="Battle controls">
@@ -32,19 +33,20 @@
           <div>
             <p class="eyebrow">Selected</p>
             <h2 id="selectedName">Choose a hero</h2>
-            <div class="abilities-panel" id="abilitiesPanel" aria-label="Hero abilities"></div>
+            <div class="ability-row">
+              <div class="abilities-panel" id="abilitiesPanel" aria-label="Hero abilities"></div>
+              <div class="actions action-menu">
+                <button id="menuBtn" class="menu-btn" type="button" aria-expanded="false" aria-controls="actionMenu">Menu</button>
+                <div class="action-menu__items" id="actionMenu">
+                  <button id="upgradeBtn" type="button">Upgrade</button>
+                  <button id="rallyBtn" type="button">Rally</button>
+                  <button id="restartBtn" type="button">Restart</button>
+                </div>
+              </div>
+            </div>
             <p id="selectedStats">Tap a hero, then tap the field to move.</p>
           </div>
-          <div class="actions action-menu">
-            <button id="menuBtn" class="menu-btn" type="button" aria-expanded="false" aria-controls="actionMenu">Menu</button>
-            <div class="action-menu__items" id="actionMenu">
-              <button id="upgradeBtn" type="button">Upgrade</button>
-              <button id="rallyBtn" type="button">Rally</button>
-              <button id="restartBtn" type="button">Restart</button>
-            </div>
-          </div>
         </div>
-        <p class="log" id="log">Select a hero. Tap ground to move, tap enemies to focus fire.</p>
       </section>
     </main>
 
