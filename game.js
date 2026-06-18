@@ -2876,36 +2876,37 @@ function syncUi() {
 
   squadEl.innerHTML = "";
   heroDockEl.innerHTML = "";
-  heroes().forEach((unit) => {
+  heroes(true).forEach((unit) => {
+    const sleeping = unit.asleep || unit.reviveTimer > 0 || unit.hp <= 0;
     const avatar = document.createElement("button");
     avatar.type = "button";
-    avatar.className = `hero-avatar ${selectedId === unit.id ? "active" : ""} ${unit.asleep ? "sleeping" : ""}`;
+    avatar.className = `hero-avatar ${selectedId === unit.id ? "active" : ""} ${sleeping ? "sleeping" : ""}`;
     avatar.setAttribute("aria-label", `Select ${unit.name}`);
     avatar.innerHTML = `
       ${unit.portrait ? `<img src="${unit.portrait}" alt="${unit.name}">` : `<span>${unit.name[0]}</span>`}
-      ${unit.asleep ? `<span class="sleep-mark">ZZZ</span>` : ""}
+      ${sleeping ? `<span class="sleep-mark">ZZZ</span>` : ""}
       <small>${unit.name}</small>
     `;
     avatar.addEventListener("click", () => {
       selectHero(unit.id);
-      if (unit.asleep) payHeroUpkeep(unit.id);
+      if (sleeping) payHeroUpkeep(unit.id);
     });
     heroDockEl.appendChild(avatar);
 
     const card = document.createElement("button");
     card.type = "button";
-    card.className = `hero-card ${selectedId === unit.id ? "active" : ""}`;
+    card.className = `hero-card ${selectedId === unit.id ? "active" : ""} ${sleeping ? "sleeping" : ""}`;
     card.innerHTML = `
       ${unit.portrait ? `<img class="hero-card__portrait" src="${unit.portrait}" alt="${unit.name}">` : ""}
       <span class="hero-card__details">
         <strong>${unit.name}</strong>
-        <small>${unit.asleep ? "Sleeping | " : ""}${unit.role} | LVL ${Math.floor(unit.level)} | ATK ${unit.atk} | RNG ${unit.range} | DEF ${unit.def}</small>
+        <small>${sleeping ? "Sleeping | " : ""}${unit.role} | LVL ${Math.floor(unit.level)} | ATK ${unit.atk} | RNG ${unit.range} | DEF ${unit.def}</small>
         <span class="bar"><span style="width:${Math.max(0, unit.hp / unit.maxHp) * 100}%"></span></span>
       </span>
     `;
     card.addEventListener("click", () => {
       selectHero(unit.id);
-      if (unit.asleep) payHeroUpkeep(unit.id);
+      if (sleeping) payHeroUpkeep(unit.id);
     });
     squadEl.appendChild(card);
   });

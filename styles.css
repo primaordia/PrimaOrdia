@@ -276,6 +276,15 @@ canvas {
   outline: 2px solid var(--hero);
 }
 
+.hero-card.sleeping {
+  opacity: 0.72;
+  filter: saturate(0.55);
+}
+
+.hero-card.sleeping .hero-card__portrait {
+  filter: grayscale(1) brightness(0.66);
+}
+
 .hero-card__portrait {
   width: 38px;
   height: 38px;
