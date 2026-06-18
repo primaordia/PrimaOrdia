@@ -2554,7 +2554,7 @@ function castLightOfDawn(hero) {
   let affected = 0;
   heroes().forEach((ally) => {
     if (ally.mesh.position.distanceTo(hero.mesh.position) > 3) return;
-    ally.hp = Math.min(ally.maxHp, ally.hp + 60);
+    ally.hp = Math.min(ally.maxHp, ally.hp + 25);
     holyLightBurst(ally.mesh.position, 0.9, 0.9);
     healingBubbles(ally.mesh.position);
     affected += 1;
