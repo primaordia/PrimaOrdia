@@ -1602,7 +1602,7 @@ function dropMedkits() {
     scene.add(pickup.mesh);
   });
   medkitSpawnTimer = 15;
-  log("Space candies and meat appeared.");
+  log("Space candies and Bubblenium appeared.");
 }
 
 function randomFieldPositions(count, minDistance) {
@@ -1679,33 +1679,40 @@ function createMedkit(id, position) {
 
 function createMeatPickup(id, position) {
   const group = new THREE.Group();
-  const meatMat = new THREE.MeshStandardMaterial({ color: 0xb83a2f, roughness: 0.5, metalness: 0.04 });
-  const boneMat = new THREE.MeshStandardMaterial({ color: 0xf3e0bd, roughness: 0.52, metalness: 0.02 });
+  const oreMat = new THREE.MeshStandardMaterial({ color: 0xf6fbff, roughness: 0.22, metalness: 0.86, emissive: 0xdbe9ff, emissiveIntensity: 0.12 });
+  const shineMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 });
+  const bubbleMat = new THREE.MeshStandardMaterial({ color: 0xff9adf, roughness: 0.28, metalness: 0.18, emissive: 0xff65c8, emissiveIntensity: 0.28 });
 
-  const bone = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.05, 10), boneMat);
-  bone.rotation.z = Math.PI / 2;
-  bone.position.y = 0.36;
-  bone.castShadow = true;
-  group.add(bone);
+  const ore = new THREE.Mesh(new THREE.DodecahedronGeometry(0.48, 1), oreMat);
+  ore.scale.set(1.12, 0.82, 0.9);
+  ore.position.y = 0.48;
+  ore.rotation.set(0.35, 0.2, -0.22);
+  ore.castShadow = true;
+  group.add(ore);
 
-  [-0.58, 0.58].forEach((x) => {
-    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), boneMat);
-    knob.position.set(x, 0.36, 0);
-    knob.castShadow = true;
-    group.add(knob);
+  const glint = new THREE.Mesh(new THREE.OctahedronGeometry(0.12), shineMat);
+  glint.position.set(-0.13, 0.82, 0.25);
+  glint.scale.set(0.55, 1.6, 0.35);
+  group.add(glint);
+
+  [
+    [-0.24, 0.56, 0.34, 0.09],
+    [0.18, 0.66, 0.32, 0.075],
+    [0.31, 0.43, 0.21, 0.065],
+    [-0.08, 0.36, 0.42, 0.055],
+    [0.02, 0.78, -0.2, 0.07]
+  ].forEach(([x, y, z, radius]) => {
+    const bubble = new THREE.Mesh(new THREE.SphereGeometry(radius, 12, 8), bubbleMat);
+    bubble.position.set(x, y, z);
+    bubble.castShadow = true;
+    group.add(bubble);
   });
 
-  const meat = new THREE.Mesh(new THREE.SphereGeometry(0.31, 14, 10), meatMat);
-  meat.scale.set(1.15, 0.9, 0.85);
-  meat.position.set(0, 0.42, 0);
-  meat.castShadow = true;
-  group.add(meat);
-
   const highlight = new THREE.Mesh(
-    new THREE.BoxGeometry(1.1, 0.72, 0.72),
-    new THREE.MeshBasicMaterial({ color: 0xf28a28, transparent: true, opacity: 0.2, wireframe: true, depthTest: false })
+    new THREE.BoxGeometry(1.16, 0.92, 0.94),
+    new THREE.MeshBasicMaterial({ color: 0xff9adf, transparent: true, opacity: 0.22, wireframe: true, depthTest: false })
   );
-  highlight.position.y = 0.38;
+  highlight.position.y = 0.48;
   highlight.visible = false;
   group.add(highlight);
 
@@ -1714,7 +1721,7 @@ function createMeatPickup(id, position) {
   group.traverse((child) => {
     child.userData.medkitId = id;
   });
-  return { id, type: "meat", label: "Meat", mesh: group, highlight, bob: Math.random() * Math.PI * 2, ttl: 15 };
+  return { id, type: "meat", label: "Bubblenium", mesh: group, highlight, bob: Math.random() * Math.PI * 2, ttl: 15 };
 }
 
 function updateMedkits(dt) {
@@ -1750,7 +1757,7 @@ function updateMedkits(dt) {
       hero.speedBuffMultiplier = Math.max(hero.speedBuffMultiplier ?? 1, 1.33);
       hero.speedBuffTimer = Math.max(hero.speedBuffTimer ?? 0, 10);
       sparklyHealBurst(hero.mesh.position);
-      log(`${hero.name} gained a meat boost.`);
+      log(`${hero.name} absorbed Bubblenium.`);
     } else {
       hero.hp = Math.min(hero.maxHp, hero.hp + kit.heal);
       healingBubbles(hero.mesh.position);
@@ -2818,6 +2825,7 @@ function castStinkyBreath(hero) {
     flash(enemy.mesh.position, 0x8a5a31);
   });
   flameBreath(hero);
+  playEwwwSound();
   log(hits ? `${hero.name} used Stinky Breath.` : "Stinky Breath missed.");
   return hits > 0;
 }
@@ -3436,6 +3444,40 @@ function playBelchSound() {
     noiseLevel: 0.72,
     waveType: "square"
   });
+}
+
+function playEwwwSound() {
+  const context = getAudioContext();
+  if (!context) return;
+  const now = context.currentTime;
+  const duration = 1.45;
+  const gain = context.createGain();
+  const vowel = context.createOscillator();
+  const vibrato = context.createOscillator();
+  const vibratoGain = context.createGain();
+  const filter = context.createBiquadFilter();
+
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.22, now + 0.06);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+  vowel.type = "triangle";
+  vowel.frequency.setValueAtTime(510, now);
+  vowel.frequency.exponentialRampToValueAtTime(230, now + duration);
+  vibrato.frequency.setValueAtTime(7.2, now);
+  vibratoGain.gain.setValueAtTime(42, now);
+  filter.type = "bandpass";
+  filter.frequency.setValueAtTime(940, now);
+  filter.Q.setValueAtTime(8, now);
+
+  vibrato.connect(vibratoGain);
+  vibratoGain.connect(vowel.frequency);
+  vowel.connect(filter);
+  filter.connect(gain);
+  gain.connect(context.destination);
+  vowel.start(now);
+  vibrato.start(now);
+  vowel.stop(now + duration);
+  vibrato.stop(now + duration);
 }
 
 function playRumbleSound(context, options) {
