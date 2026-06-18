@@ -37,8 +37,7 @@ const abilityCooldownDurations = {
   "Star Shot": 15,
   "Shadow Step": 5,
   "Sausage Rain": 5,
-  "Inner Light": 6,
-  "Light of Dawn": 1,
+  "Inner Light": 1,
   "Hammer of Light": 3,
   "Selfless Shield": 5
 };
@@ -142,7 +141,7 @@ const heroTemplates = [
     role: "Holy Paladin",
     archetype: "paladin",
     portrait: "assets/heroes/frank.svg",
-    abilities: ["Inner Light", "Light of Dawn", "Hammer of Light", "Selfless Shield"]
+    abilities: ["Inner Light", "Hammer of Light", "Selfless Shield"]
   }
 ];
 
@@ -2308,11 +2307,6 @@ function chooseAbility(heroId, ability) {
     syncUi();
     return;
   }
-  if (ability === "Light of Dawn") {
-    if (castLightOfDawn(hero)) startAbilityCooldown(hero, ability);
-    syncUi();
-    return;
-  }
   if (ability === "Hammer of Light") {
     if (castHammerOfLight(hero)) startAbilityCooldown(hero, ability);
     syncUi();
@@ -2539,28 +2533,14 @@ function castSausageRain(hero) {
 }
 
 function castInnerLight(hero) {
-  hero.hp = Math.min(hero.maxHp, hero.hp + 20);
-  const affected = enemies().filter((enemy) => enemy.mesh.position.distanceTo(hero.mesh.position) <= 2);
-  affected.forEach((enemy) => {
-    enemy.hp -= 20;
-    flash(enemy.mesh.position, 0xfff0a6);
+  let affected = 0;
+  heroes().forEach((ally) => {
+    if (ally.mesh.position.distanceTo(hero.mesh.position) > 3.5) return;
+    ally.hp = Math.min(ally.maxHp, ally.hp + 25);
+    affected += 1;
   });
   flash(hero.mesh.position, 0xfff0a6);
   log(`${hero.name} used Inner Light.`);
-  return true;
-}
-
-function castLightOfDawn(hero) {
-  let affected = 0;
-  heroes().forEach((ally) => {
-    if (ally.mesh.position.distanceTo(hero.mesh.position) > 3) return;
-    ally.hp = Math.min(ally.maxHp, ally.hp + 25);
-    holyLightBurst(ally.mesh.position, 0.9, 0.9);
-    healingBubbles(ally.mesh.position);
-    affected += 1;
-  });
-  holyLightBurst(hero.mesh.position, 3, 1.1);
-  log(`${hero.name} cast Light of Dawn.`);
   return affected > 0;
 }
 
