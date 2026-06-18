@@ -427,6 +427,14 @@ canvas {
   width: 100%;
 }
 
+.selected-stats {
+  width: 100%;
+  padding-top: 4px;
+  border-top: 1px solid rgba(229, 234, 218, 0.1);
+  font-size: 16px;
+  line-height: 1.25;
+}
+
 .log {
   position: fixed;
   left: 50%;
@@ -506,6 +514,10 @@ canvas {
     min-width: 78px;
     padding: 0 7px;
     font-size: 10px;
+  }
+
+  .selected-stats {
+    font-size: 14px;
   }
 
   button {
