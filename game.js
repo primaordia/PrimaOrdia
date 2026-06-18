@@ -1125,7 +1125,7 @@ function resetGame() {
 
   heroTemplates.forEach((template, index) => {
     const x = (index - 1) * 3.5;
-    units.push(createUnit({ ...template, side: "hero", x, z: 6.2, level: 1 }));
+    units.push(createUnit({ ...template, side: "hero", x, z: 9.4, level: 1 }));
   });
 
   spawnWave();
