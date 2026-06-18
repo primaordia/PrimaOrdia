@@ -3512,7 +3512,7 @@ function playEwwwSound() {
   const filter = context.createBiquadFilter();
 
   gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(0.22, now + 0.06);
+  gain.gain.exponentialRampToValueAtTime(0.42, now + 0.06);
   gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
   vowel.type = "triangle";
   vowel.frequency.setValueAtTime(510, now);
