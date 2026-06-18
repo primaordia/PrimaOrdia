@@ -33,7 +33,7 @@ const abilityCooldownDurations = {
   "Solar Burst": 5,
   "Wing Dash": 8,
   "Sparkly Heal": 3,
-  "Berry Shield": 8,
+  "Berry Shield": 12,
   "Flame Breath": 3,
   "Star Shot": 15,
   "Shadow Step": 5,
