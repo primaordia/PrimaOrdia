@@ -1,4 +1,5 @@
 .DS_Store
+PrimaOrdia/
 *.log
 node_modules/
 dist/
