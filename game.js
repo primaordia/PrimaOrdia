@@ -1358,6 +1358,8 @@ function createUnit(data) {
     abilityCooldowns: {},
     speedBuffTimer: 0,
     speedBuffMultiplier: 1,
+    wingDashTimer: 0,
+    wingDashHitIds: new Set(),
     asleep: false,
     sleepReason: null,
     sleepBob: Math.random() * Math.PI * 2,
@@ -1859,6 +1861,11 @@ function updateHeroBuffs(dt) {
       if (hero.speedBuffTimer === 0) hero.speedBuffMultiplier = 1;
     }
 
+    if (hero.wingDashTimer > 0) {
+      hero.wingDashTimer = Math.max(0, hero.wingDashTimer - dt);
+      if (hero.wingDashTimer === 0) hero.wingDashHitIds.clear();
+    }
+
     if (hero.atkBuffTimer <= 0) {
       hero.atkBuffMultiplier = 1;
       hero.meatBuffTimer = 0;
@@ -2131,8 +2138,29 @@ function moveTo(unit, point, dt) {
   next.x = THREE.MathUtils.clamp(next.x, -worldSize / 2 + 1, worldSize / 2 - 1);
   next.z = THREE.MathUtils.clamp(next.z, -worldSize / 2 + 1, worldSize / 2 - 1);
   if (isTerrainBlocked(unit, next)) return;
+  if (unit.side === "hero" && unit.wingDashTimer > 0) damageEnemiesInDashPath(unit, pos, next);
   pos.copy(next);
   face(unit, point);
+}
+
+function damageEnemiesInDashPath(hero, start, end) {
+  enemies().forEach((enemy) => {
+    if (hero.wingDashHitIds.has(enemy.id)) return;
+    if (distancePointToSegment(enemy.mesh.position, start, end) > 0.82) return;
+    enemy.hp -= 35;
+    hero.wingDashHitIds.add(enemy.id);
+    flash(enemy.mesh.position, 0x9be7f5);
+  });
+}
+
+function distancePointToSegment(point, start, end) {
+  const segment = end.clone().sub(start).setY(0);
+  const lengthSq = segment.lengthSq();
+  if (lengthSq === 0) return point.distanceTo(start);
+  const toPoint = point.clone().sub(start).setY(0);
+  const t = THREE.MathUtils.clamp(toPoint.dot(segment) / lengthSq, 0, 1);
+  const closest = start.clone().add(segment.multiplyScalar(t));
+  return point.clone().setY(0).distanceTo(closest);
 }
 
 function terrainSpeedMultiplier(unit, position) {
@@ -2667,6 +2695,7 @@ function castFairyDust(hero) {
     flash(enemy.mesh.position, 0xf1d34f);
   });
   fairyDust(hero);
+  playTinkleSound();
   log(`${hero.name} cast Fairy Dust.`);
   return true;
 }
@@ -2704,7 +2733,10 @@ function castSolarBurst(hero) {
 function castWingDash(hero) {
   hero.speedBuffMultiplier = 2;
   hero.speedBuffTimer = 4;
+  hero.wingDashTimer = 4;
+  hero.wingDashHitIds = new Set();
   flash(hero.mesh.position, 0x9be7f5);
+  playWhooshSound();
   log(`${hero.name} used Wing Dash.`);
 }
 
@@ -2721,6 +2753,7 @@ function castSparklyHeal(hero) {
     affected += 1;
   });
   flash(hero.mesh.position, 0x63d463);
+  if (affected) playSparkleRingSound();
   log(affected ? `${hero.name} cast Sparkly Heal.` : "No allies in Sparkly Heal range.");
   return affected > 0;
 }
@@ -2895,6 +2928,7 @@ function castInnerLight(hero) {
     affected += 1;
   });
   flash(hero.mesh.position, 0xfff0a6);
+  if (affected) playShineSound();
   log(`${hero.name} used Inner Light.`);
   return affected > 0;
 }
@@ -3498,6 +3532,69 @@ function playEwwwSound() {
   vibrato.start(now);
   vowel.stop(now + duration);
   vibrato.stop(now + duration);
+}
+
+function playWhooshSound() {
+  const context = getAudioContext();
+  if (!context) return;
+  const now = context.currentTime;
+  const duration = 0.75;
+  const gain = context.createGain();
+  const filter = context.createBiquadFilter();
+  const noise = context.createBufferSource();
+  const buffer = context.createBuffer(1, Math.ceil(context.sampleRate * duration), context.sampleRate);
+  const samples = buffer.getChannelData(0);
+
+  for (let i = 0; i < samples.length; i += 1) {
+    samples[i] = (Math.random() * 2 - 1) * Math.sin((i / samples.length) * Math.PI);
+  }
+
+  filter.type = "bandpass";
+  filter.frequency.setValueAtTime(360, now);
+  filter.frequency.exponentialRampToValueAtTime(2200, now + duration);
+  filter.Q.setValueAtTime(1.2, now);
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.22, now + 0.08);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+  noise.buffer = buffer;
+  noise.connect(filter);
+  filter.connect(gain);
+  gain.connect(context.destination);
+  noise.start(now);
+  noise.stop(now + duration);
+}
+
+function playTinkleSound() {
+  playBellSequence([1320, 1760, 2217, 2640], 0.55, 0.08);
+}
+
+function playSparkleRingSound() {
+  playBellSequence([880, 1175, 1568, 2093, 2637], 0.85, 0.07);
+}
+
+function playShineSound() {
+  playBellSequence([660, 990, 1320, 1980], 2, 0.1);
+}
+
+function playBellSequence(frequencies, duration, volume) {
+  const context = getAudioContext();
+  if (!context) return;
+  const now = context.currentTime;
+  frequencies.forEach((frequency, index) => {
+    const start = now + index * (duration / frequencies.length) * 0.55;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(frequency, start);
+    oscillator.frequency.exponentialRampToValueAtTime(frequency * 1.18, start + duration * 0.45);
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(volume, start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(start);
+    oscillator.stop(start + duration);
+  });
 }
 
 function playRumbleSound(context, options) {
