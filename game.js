@@ -82,7 +82,7 @@ let actionMenuOpen = false;
 let targetingAbility = null;
 let audioContext = null;
 let masterAudioGain = null;
-const masterAudioVolume = 2;
+const masterAudioVolume = 5;
 
 const heroTemplates = [
   {
@@ -2908,6 +2908,7 @@ function castSausageRain(hero) {
     sparklyHealBurst(ally.mesh.position);
   });
   sausageRain(target.mesh.position);
+  playYumYumSound();
   log(`${hero.name} called Sausage Rain on ${affected.length} enemy${affected.length === 1 ? "" : "ies"}.`);
   return affected.length > 0;
 }
@@ -3590,6 +3591,41 @@ function playSparkleRingSound() {
 
 function playShineSound() {
   playBellSequence([660, 990, 1320, 1980], 2, 0.1);
+}
+
+function playYumYumSound() {
+  const context = getAudioContext();
+  if (!context) return;
+  const now = context.currentTime;
+  const syllables = [
+    { start: 0, frequency: 720 },
+    { start: 0.34, frequency: 780 },
+    { start: 0.68, frequency: 740 }
+  ];
+
+  syllables.forEach((syllable) => {
+    const start = now + syllable.start;
+    const duration = 0.28;
+    const oscillator = context.createOscillator();
+    const formant = context.createBiquadFilter();
+    const gain = context.createGain();
+
+    oscillator.type = "triangle";
+    oscillator.frequency.setValueAtTime(syllable.frequency, start);
+    oscillator.frequency.exponentialRampToValueAtTime(syllable.frequency * 0.78, start + duration);
+    formant.type = "bandpass";
+    formant.frequency.setValueAtTime(980, start);
+    formant.Q.setValueAtTime(4.8, start);
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(0.34, start + 0.035);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+    oscillator.connect(formant);
+    formant.connect(gain);
+    gain.connect(audioOutput(context));
+    oscillator.start(start);
+    oscillator.stop(start + duration);
+  });
 }
 
 function playBellSequence(frequencies, duration, volume) {
