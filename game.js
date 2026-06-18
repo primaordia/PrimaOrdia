@@ -34,19 +34,20 @@ const abilityCooldownDurations = {
   "Wing Dash": 8,
   "Sparkly Heal": 3,
   "Berry Shield": 12,
-  "Flame Breath": 3,
-  "Star Shot": 15,
+  "Stinky Breath": 3,
+  "Void Barrage": 15,
   "Shadow Step": 5,
   "Sausage Rain": 5,
   "Inner Light": 1,
-  "Holy Fart": 3,
+  "Space Fart": 3,
   "Selfless Belch": 5
 };
+const heroStartSlots = { leela: 0, frank: 1, poliana: 2, feenix: 3 };
 const biomeThemes = [
-  { name: "Forest", sky: 0x192018, fog: 0x192018, ground: 0x3a4634, patch: [0x425338, 0x2f3f35, 0x4a5137], water: 0x357b8f, mountain: 0x5f665f, tree: [0x26482f, 0x315d38, 0x516b39] },
-  { name: "Desert", sky: 0x5a4730, fog: 0x5a4730, ground: 0x9c7a45, patch: [0xb28b51, 0x85683f, 0xc19a5f], water: 0x397f91, mountain: 0x8a6a48, tree: [0x6f7c3a, 0x8d8a3d, 0x566b35] },
-  { name: "Moonscape", sky: 0x11131a, fog: 0x11131a, ground: 0x5f626b, patch: [0x6f737d, 0x4e525d, 0x777a82], water: 0x3d6077, mountain: 0x888c96, tree: [0x5f6670, 0x727a83, 0x4c535d] },
-  { name: "Mars", sky: 0x351b16, fog: 0x351b16, ground: 0x8f3f28, patch: [0xa84f32, 0x71301f, 0xb8663f], water: 0x285b69, mountain: 0x9d5139, tree: [0x7b4f2b, 0x9c6435, 0x5f4328] }
+  { name: "Nebula Grove", sky: 0x050816, fog: 0x050816, ground: 0x28314f, patch: [0x32406f, 0x1c2442, 0x46345f], water: 0x285f8c, mountain: 0x5d658c, tree: [0x273e65, 0x44577d, 0x38436d] },
+  { name: "Asteroid Dunes", sky: 0x070612, fog: 0x070612, ground: 0x5b496c, patch: [0x6c5f8c, 0x3e3157, 0x7b6281], water: 0x355c7f, mountain: 0x7b7690, tree: [0x4d5378, 0x656990, 0x3c4569] },
+  { name: "Moonbase", sky: 0x03050d, fog: 0x03050d, ground: 0x5f626b, patch: [0x747887, 0x454b5b, 0x2f3548], water: 0x334f76, mountain: 0x8a8e9c, tree: [0x5e6c89, 0x74809a, 0x49546e] },
+  { name: "Red Planet", sky: 0x09040b, fog: 0x09040b, ground: 0x7f3b42, patch: [0x9d4c5c, 0x522b42, 0xb35b60], water: 0x2f5f75, mountain: 0x944f65, tree: [0x72506e, 0x93596f, 0x5d3d5a] }
 ];
 
 let renderer;
@@ -79,6 +80,7 @@ let autoRestartTimeout = null;
 let uiRefreshTimer = 0;
 let actionMenuOpen = false;
 let targetingAbility = null;
+let audioContext = null;
 
 const heroTemplates = [
   {
@@ -91,7 +93,7 @@ const heroTemplates = [
     def: 1,
     range: 4,
     speed: 5.25,
-    role: "Fairy Guardian",
+    role: "Star Fairy",
     archetype: "guardian",
     portrait: "assets/heroes/leela.png",
     faceTexture: "assets/heroes/leela-face.png",
@@ -111,7 +113,7 @@ const heroTemplates = [
     archetype: "mystic",
     portrait: "assets/heroes/feenix.png",
     faceTexture: "assets/heroes/feenix-face.png",
-    abilities: ["Solar Burst", "Berry Shield", "Flame Breath"]
+    abilities: ["Solar Burst", "Berry Shield", "Stinky Breath"]
   },
   {
     id: "poliana",
@@ -122,12 +124,12 @@ const heroTemplates = [
     atk: 16,
     def: 1,
     speed: 6.35,
-    role: "Star Ranger",
+    role: "Void Ranger",
     archetype: "ranger",
     portrait: "assets/heroes/poliana.png",
     faceTexture: "assets/heroes/poliana-face.png",
     range: 6,
-    abilities: ["Star Shot", "Shadow Step", "Sausage Rain"]
+    abilities: ["Void Barrage", "Shadow Step", "Sausage Rain"]
   },
   {
     id: "frank",
@@ -139,10 +141,10 @@ const heroTemplates = [
     def: 3,
     range: 1,
     speed: 5.1,
-    role: "Holy Paladin",
+    role: "Space Paladin",
     archetype: "paladin",
     portrait: "assets/heroes/frank.png",
-    abilities: ["Inner Light", "Holy Fart", "Selfless Belch"]
+    abilities: ["Inner Light", "Space Fart", "Selfless Belch"]
   }
 ];
 
@@ -163,8 +165,8 @@ function init() {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x192018);
-  scene.fog = new THREE.Fog(0x192018, 38, 72);
+  scene.background = new THREE.Color(0x050816);
+  scene.fog = new THREE.Fog(0x050816, 38, 72);
 
   camera = new THREE.PerspectiveCamera(48, 1, 0.1, 100);
   camera.position.set(0, 27, 28);
@@ -183,6 +185,7 @@ function init() {
   sun.shadow.camera.bottom = -24;
   scene.add(sun);
 
+  addSpaceBackdrop();
   createWorld();
   resize();
 
@@ -198,6 +201,51 @@ function init() {
     setActionMenuOpen(false);
     resetGame();
   });
+}
+
+function addSpaceBackdrop() {
+  const positions = [];
+  const colors = [];
+  const starColors = [new THREE.Color(0xffffff), new THREE.Color(0xbfd9ff), new THREE.Color(0xfff0b8), new THREE.Color(0xd7c4ff)];
+  for (let i = 0; i < 520; i += 1) {
+    const radius = THREE.MathUtils.randFloat(54, 92);
+    const theta = Math.random() * Math.PI * 2;
+    const y = THREE.MathUtils.randFloat(12, 64);
+    positions.push(Math.cos(theta) * radius, y, Math.sin(theta) * radius);
+    const color = starColors[i % starColors.length];
+    colors.push(color.r, color.g, color.b);
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  const stars = new THREE.Points(
+    geometry,
+    new THREE.PointsMaterial({ size: 0.28, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false })
+  );
+  stars.renderOrder = -20;
+  scene.add(stars);
+
+  addPlanet(-22, 24, -34, 3.6, 0x7a5cff, 0x2d214f);
+  addPlanet(25, 34, -42, 5.2, 0xd97957, 0x5c2735);
+  addPlanet(16, 18, 36, 2.4, 0x5ec4d3, 0x173946);
+}
+
+function addPlanet(x, y, z, radius, color, ringColor) {
+  const planet = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 32, 18),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.86 })
+  );
+  planet.position.set(x, y, z);
+  scene.add(planet);
+
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(radius * 1.25, radius * 1.72, 48),
+    new THREE.MeshBasicMaterial({ color: ringColor, transparent: true, opacity: 0.48, side: THREE.DoubleSide })
+  );
+  ring.position.copy(planet.position);
+  ring.rotation.set(Math.PI / 2.5, 0.25, 0.35);
+  scene.add(ring);
 }
 
 function setActionMenuOpen(open) {
@@ -1255,12 +1303,13 @@ function resetGame() {
   state = "playing";
 
   heroTemplates.forEach((template, index) => {
-    const x = (index - (heroTemplates.length - 1) / 2) * 3.1;
+    const slot = heroStartSlots[template.id] ?? index;
+    const x = (slot - (heroTemplates.length - 1) / 2) * 3.1;
     units.push(createUnit({ ...template, side: "hero", x, z: 9.4, level: 1 }));
   });
 
   spawnWave();
-  log("Command Leela, Feenix, Poliana, and Frank in real time.");
+  log("Command Leela, Frank, Poliana, and Feenix in real time.");
   syncUi();
 }
 
@@ -1553,7 +1602,7 @@ function dropMedkits() {
     scene.add(pickup.mesh);
   });
   medkitSpawnTimer = 15;
-  log("First aid kits and meat appeared.");
+  log("Space candies and meat appeared.");
 }
 
 function randomFieldPositions(count, minDistance) {
@@ -1580,32 +1629,40 @@ function randomFieldPositions(count, minDistance) {
 
 function createMedkit(id, position) {
   const group = new THREE.Group();
-  const boxMat = new THREE.MeshStandardMaterial({ color: 0xf5f0e7, roughness: 0.48, metalness: 0.04 });
-  const redMat = new THREE.MeshStandardMaterial({ color: 0xe8483f, roughness: 0.42, metalness: 0.06 });
-  const handleMat = new THREE.MeshStandardMaterial({ color: 0x58625a, roughness: 0.56, metalness: 0.12 });
+  const wrapperMat = new THREE.MeshStandardMaterial({ color: 0x714de8, roughness: 0.42, metalness: 0.08 });
+  const stripeMat = new THREE.MeshStandardMaterial({ color: 0x52d6ff, roughness: 0.38, metalness: 0.12 });
+  const candyMat = new THREE.MeshStandardMaterial({ color: 0xffe66d, roughness: 0.42, metalness: 0.04 });
+  const endMat = new THREE.MeshStandardMaterial({ color: 0xe9f6ff, roughness: 0.45, metalness: 0.06 });
 
-  const box = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.42, 0.62), boxMat);
-  box.position.y = 0.38;
-  box.castShadow = true;
-  group.add(box);
+  const wrapper = new THREE.Mesh(new THREE.BoxGeometry(1.12, 0.34, 0.48), wrapperMat);
+  wrapper.position.y = 0.38;
+  wrapper.castShadow = true;
+  group.add(wrapper);
 
-  const crossVertical = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.04, 0.44), redMat);
-  crossVertical.position.set(0, 0.61, 0.01);
-  crossVertical.castShadow = true;
-  group.add(crossVertical);
+  [-0.46, 0.46].forEach((x) => {
+    const twist = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.3, 4), endMat);
+    twist.position.set(x, 0.38, 0);
+    twist.rotation.z = x < 0 ? Math.PI / 2 : -Math.PI / 2;
+    twist.castShadow = true;
+    group.add(twist);
+  });
 
-  const crossHorizontal = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.04, 0.14), redMat);
-  crossHorizontal.position.set(0, 0.62, 0.01);
-  crossHorizontal.castShadow = true;
-  group.add(crossHorizontal);
+  [-0.24, 0.24].forEach((x) => {
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 0.54), stripeMat);
+    stripe.position.set(x, 0.57, 0);
+    stripe.rotation.y = 0.18;
+    stripe.castShadow = true;
+    group.add(stripe);
+  });
 
-  const handle = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.025, 8, 20, Math.PI), handleMat);
-  handle.position.set(0, 0.65, -0.22);
-  handle.rotation.set(Math.PI / 2, 0, Math.PI);
-  group.add(handle);
+  const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.12), candyMat);
+  star.position.set(0, 0.61, 0.01);
+  star.rotation.set(0.4, 0.3, 0.1);
+  star.castShadow = true;
+  group.add(star);
 
   const highlight = new THREE.Mesh(
-    new THREE.BoxGeometry(1.02, 0.62, 0.82),
+    new THREE.BoxGeometry(1.28, 0.56, 0.72),
     new THREE.MeshBasicMaterial({ color: 0x63d463, transparent: true, opacity: 0.18, wireframe: true, depthTest: false })
   );
   highlight.position.y = 0.38;
@@ -1617,7 +1674,7 @@ function createMedkit(id, position) {
   group.traverse((child) => {
     child.userData.medkitId = id;
   });
-  return { id, type: "medkit", label: "Medikit", mesh: group, highlight, heal: 50, bob: Math.random() * Math.PI * 2, ttl: 15 };
+  return { id, type: "medkit", label: "Space Candy", mesh: group, highlight, heal: 50, bob: Math.random() * Math.PI * 2, ttl: 15 };
 }
 
 function createMeatPickup(id, position) {
@@ -1697,7 +1754,7 @@ function updateMedkits(dt) {
     } else {
       hero.hp = Math.min(hero.maxHp, hero.hp + kit.heal);
       healingBubbles(hero.mesh.position);
-      log(`${hero.name} used a first aid kit.`);
+      log(`${hero.name} ate a Space Candy.`);
     }
     flash(hero.mesh.position, 0x63d463);
     scene.remove(kit.mesh);
@@ -1829,10 +1886,11 @@ function updateStatusEffects(dt) {
       unit.burnTimer = Math.max(0, unit.burnTimer - dt);
       unit.burnTickTimer -= dt;
       if (unit.burnTickTimer <= 0) {
-        unit.hp -= 10;
+        unit.hp -= unit.burnDamage ?? 10;
         unit.burnTickTimer = 1;
-        flash(unit.mesh.position, 0xff4b24);
+        flash(unit.mesh.position, 0x8a5a31);
       }
+      if (unit.burnTimer === 0) unit.burnDamage = 10;
     }
 
     if (unit.sausageRainTimer > 0) {
@@ -2520,9 +2578,9 @@ function chooseAbility(heroId, ability) {
     syncUi();
     return;
   }
-  if (ability === "Star Shot") {
+  if (ability === "Void Barrage") {
     targetingAbility = { heroId: hero.id, ability };
-    log("Tap an enemy or location for Star Shot.");
+    log("Tap an enemy or location for Void Barrage.");
     syncUi();
     return;
   }
@@ -2536,8 +2594,8 @@ function chooseAbility(heroId, ability) {
     syncUi();
     return;
   }
-  if (ability === "Flame Breath") {
-    if (castFlameBreath(hero)) startAbilityCooldown(hero, ability);
+  if (ability === "Stinky Breath") {
+    if (castStinkyBreath(hero)) startAbilityCooldown(hero, ability);
     syncUi();
     return;
   }
@@ -2551,7 +2609,7 @@ function chooseAbility(heroId, ability) {
     syncUi();
     return;
   }
-  if (ability === "Holy Fart") {
+  if (ability === "Space Fart") {
     if (castHammerOfLight(hero)) startAbilityCooldown(hero, ability);
     syncUi();
     return;
@@ -2648,9 +2706,9 @@ function castTargetedAbilityAt(point) {
     return false;
   }
 
-  if (targetingAbility.ability === "Star Shot") {
-    if (castStarShotAt(hero, point)) {
-      startAbilityCooldown(hero, "Star Shot");
+  if (targetingAbility.ability === "Void Barrage") {
+    if (castVoidBarrageAt(hero, point)) {
+      startAbilityCooldown(hero, "Void Barrage");
       targetingAbility = null;
       syncUi();
     }
@@ -2660,8 +2718,8 @@ function castTargetedAbilityAt(point) {
   return false;
 }
 
-function castStarShotAt(hero, point) {
-  const maxRange = 5;
+function castVoidBarrageAt(hero, point) {
+  const maxRange = 6;
   const impact = new THREE.Vector3(point.x, 0, point.z);
   const from = hero.mesh.position.clone().setY(0);
   const offset = impact.clone().sub(from);
@@ -2672,21 +2730,30 @@ function castStarShotAt(hero, point) {
   }
 
   face(hero, impact);
-  const affected = enemies().filter((enemy) => enemy.mesh.position.distanceTo(impact) <= 0.5);
-  affected.forEach((enemy) => {
-    enemy.hp -= 100;
-    flash(enemy.mesh.position, 0xf1d34f);
-  });
-  starTargetCircle(impact);
-  starShotArrow(hero.mesh.position, impact);
-  log(affected.length ? `${hero.name} fired Star Shot.` : `${hero.name} fired Star Shot at the target.`);
+  let hits = 0;
+  for (let i = 0; i < 6; i += 1) {
+    const angle = (i / 6) * Math.PI * 2;
+    const radius = i === 0 ? 0 : 0.65;
+    const arrowImpact = impact.clone();
+    arrowImpact.x += Math.cos(angle) * radius;
+    arrowImpact.z += Math.sin(angle) * radius;
+    enemies().forEach((enemy) => {
+      if (enemy.mesh.position.distanceTo(arrowImpact) > 1) return;
+      enemy.hp -= 25;
+      hits += 1;
+      flash(enemy.mesh.position, 0x9c59d1);
+    });
+    starTargetCircle(arrowImpact, 1);
+    starShotArrow(hero.mesh.position, arrowImpact);
+  }
+  log(hits ? `${hero.name} fired Void Barrage.` : `${hero.name} fired Void Barrage at the target.`);
   return true;
 }
 
-function starTargetCircle(position) {
+function starTargetCircle(position, radius = 0.52) {
   const target = new THREE.Mesh(
-    new THREE.RingGeometry(0.38, 0.52, 32),
-    new THREE.MeshBasicMaterial({ color: 0xff2f2f, transparent: true, opacity: 0.95, side: THREE.DoubleSide })
+    new THREE.RingGeometry(radius * 0.73, radius, 32),
+    new THREE.MeshBasicMaterial({ color: 0x9c59d1, transparent: true, opacity: 0.95, side: THREE.DoubleSide })
   );
   target.rotation.x = -Math.PI / 2;
   target.position.set(position.x, 0.14, position.z);
@@ -2726,10 +2793,10 @@ function castShadowStep(hero) {
   return true;
 }
 
-function castFlameBreath(hero) {
+function castStinkyBreath(hero) {
   const primaryTarget = targetEnemy(hero) ?? nearest(hero, enemies());
   if (!primaryTarget) {
-    log("No enemies for Flame Breath.");
+    log("No enemies for Stinky Breath.");
     return false;
   }
   face(hero, primaryTarget.mesh.position);
@@ -2744,14 +2811,14 @@ function castFlameBreath(hero) {
     toEnemy.y = 0;
     toEnemy.normalize();
     if (direction.dot(toEnemy) < Math.cos(Math.PI / 4)) return;
-    enemy.hp -= 25;
-    enemy.burnTimer = 3;
+    enemy.burnTimer = 4;
     enemy.burnTickTimer = 1;
+    enemy.burnDamage = 55 / 4;
     hits += 1;
-    flash(enemy.mesh.position, 0xff4b24);
+    flash(enemy.mesh.position, 0x8a5a31);
   });
   flameBreath(hero);
-  log(hits ? `${hero.name} used Flame Breath.` : "Flame Breath missed.");
+  log(hits ? `${hero.name} used Stinky Breath.` : "Stinky Breath missed.");
   return hits > 0;
 }
 
@@ -2823,7 +2890,8 @@ function castHammerOfLight(hero) {
     flash(enemy.mesh.position, 0xffe875);
   });
   hammerLightSmash(hero, direction);
-  log(hits ? `${hero.name} used Holy Fart.` : `${hero.name} called Holy Fart.`);
+  playSpaceFartSound();
+  log(hits ? `${hero.name} used Space Fart.` : `${hero.name} called Space Fart.`);
   return true;
 }
 
@@ -2842,6 +2910,7 @@ function castSelflessShield(hero) {
       flash(enemy.mesh.position, 0xd6a65a);
     });
     holyLightBurst(hero.mesh.position, 1.8, 1.1);
+    playBelchSound();
     log(hits ? `${hero.name} used Selfless Belch.` : `${hero.name} belched bravely.`);
     return true;
   }
@@ -2863,6 +2932,7 @@ function castSelflessShield(hero) {
   goldShieldAura(nearby, 8);
   goldShieldAura(hero, 8);
   healingBubbles(nearby.mesh.position);
+  playBelchSound();
   log(`${hero.name} used Selfless Belch on ${nearby.name}.`);
   return true;
 }
@@ -2952,7 +3022,7 @@ function strawberryShield(hero) {
 function flameBreath(hero) {
   const direction = new THREE.Vector3(Math.sin(hero.mesh.rotation.y), 0, Math.cos(hero.mesh.rotation.y)).normalize();
   const origin = hero.mesh.position.clone().add(direction.clone().multiplyScalar(0.9));
-  const colors = [0xff1f12, 0xff5120, 0xff9f1f, 0xffd45a];
+  const colors = [0x6b3f22, 0x8a5a31, 0xa16f3d, 0x4f301d];
   for (let i = 0; i < 82; i += 1) {
     const flame = new THREE.Mesh(
       new THREE.SphereGeometry(0.12 + Math.random() * 0.18, 10, 8),
@@ -3267,32 +3337,38 @@ function holyLightBurst(position, radius = 1.5, life = 0.9) {
 
 function hammerLightSmash(hero, direction) {
   const origin = hero.mesh.position.clone().add(direction.clone().multiplyScalar(1.25));
-  const hammer = new THREE.Group();
-  const goldMat = new THREE.MeshBasicMaterial({ color: 0xffe875, transparent: true, opacity: 0.96 });
-  const whiteMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.92 });
-  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 2.4, 10), goldMat);
-  handle.rotation.z = Math.PI / 2;
-  hammer.add(handle);
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.48, 0.55), whiteMat);
-  head.position.x = 1.15;
-  hammer.add(head);
-  hammer.position.set(origin.x, 6.8, origin.z);
-  hammer.rotation.set(0.2, hero.mesh.rotation.y, -0.55);
-  hammer.scale.setScalar(1.7);
-  hammer.userData.kind = "falling-hammer";
-  hammer.userData.life = 0.95;
-  hammer.userData.age = 0;
-  hammer.userData.duration = 0.42;
-  hammer.userData.startY = 6.8;
-  hammer.userData.endY = 0.9;
-  hammer.userData.impact = origin.clone();
-  hammer.userData.impacted = false;
-  scene.add(hammer);
-  markers.push(hammer);
+  const cloudColors = [0x6b3f22, 0x8a5a31, 0x4f301d, 0xa16f3d];
+  for (let i = 0; i < 34; i += 1) {
+    const cloud = new THREE.Mesh(
+      new THREE.SphereGeometry(0.22 + Math.random() * 0.28, 12, 8),
+      new THREE.MeshBasicMaterial({
+        color: cloudColors[i % cloudColors.length],
+        transparent: true,
+        opacity: 0.72
+      })
+    );
+    const spread = 0.25 + Math.random() * 1.45;
+    const angle = Math.random() * Math.PI * 2;
+    cloud.position.set(
+      origin.x + Math.cos(angle) * spread,
+      0.35 + Math.random() * 0.8,
+      origin.z + Math.sin(angle) * spread
+    );
+    cloud.userData.kind = "brown-cloud";
+    cloud.userData.life = 1.25 + Math.random() * 0.45;
+    cloud.userData.velocity = new THREE.Vector3(
+      Math.cos(angle) * (0.008 + Math.random() * 0.012),
+      0.045 + Math.random() * 0.04,
+      Math.sin(angle) * (0.008 + Math.random() * 0.012)
+    );
+    cloud.userData.spin = new THREE.Vector3(Math.random() * 0.035, Math.random() * 0.035, Math.random() * 0.035);
+    scene.add(cloud);
+    markers.push(cloud);
+  }
 
   const cone = new THREE.Mesh(
     new THREE.ConeGeometry(1.75, 3.05, 32, 1, true),
-    new THREE.MeshBasicMaterial({ color: 0xffe875, transparent: true, opacity: 0.36, side: THREE.DoubleSide })
+    new THREE.MeshBasicMaterial({ color: 0x8a5a31, transparent: true, opacity: 0.26, side: THREE.DoubleSide })
   );
   cone.rotation.x = Math.PI / 2;
   cone.rotation.z = -hero.mesh.rotation.y;
@@ -3302,7 +3378,7 @@ function hammerLightSmash(hero, direction) {
   cone.userData.kind = "holy-light";
   scene.add(cone);
   markers.push(cone);
-  flash(origin, 0xffe875);
+  flash(origin, 0x8a5a31);
 }
 
 function goldShieldAura(hero, duration) {
@@ -3320,6 +3396,92 @@ function goldShieldAura(hero, duration) {
   shield.userData.age = 0;
   scene.add(shield);
   markers.push(shield);
+}
+
+function getAudioContext() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return null;
+  if (!audioContext) audioContext = new AudioContextClass();
+  if (audioContext.state === "suspended") audioContext.resume();
+  return audioContext;
+}
+
+function playSpaceFartSound() {
+  const context = getAudioContext();
+  if (!context) return;
+  playRumbleSound(context, {
+    duration: 2,
+    startFrequency: 118,
+    endFrequency: 32,
+    noiseFrequency: 360,
+    volume: 0.34,
+    wobble: 9,
+    wobbleDepth: 28,
+    noiseLevel: 0.5,
+    waveType: "sawtooth"
+  });
+}
+
+function playBelchSound() {
+  const context = getAudioContext();
+  if (!context) return;
+  playRumbleSound(context, {
+    duration: 3,
+    startFrequency: 56,
+    endFrequency: 92,
+    noiseFrequency: 190,
+    volume: 0.32,
+    wobble: 3,
+    wobbleDepth: 38,
+    noiseLevel: 0.72,
+    waveType: "square"
+  });
+}
+
+function playRumbleSound(context, options) {
+  const now = context.currentTime;
+  const gain = context.createGain();
+  const filter = context.createBiquadFilter();
+  const oscillator = context.createOscillator();
+  const wobble = context.createOscillator();
+  const wobbleGain = context.createGain();
+  const noise = context.createBufferSource();
+  const noiseGain = context.createGain();
+  const buffer = context.createBuffer(1, Math.ceil(context.sampleRate * options.duration), context.sampleRate);
+  const samples = buffer.getChannelData(0);
+
+  for (let i = 0; i < samples.length; i += 1) {
+    samples[i] = (Math.random() * 2 - 1) * (1 - i / samples.length);
+  }
+
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(options.volume, now + 0.08);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + options.duration);
+  filter.type = "lowpass";
+  filter.frequency.setValueAtTime(options.noiseFrequency, now);
+  filter.frequency.exponentialRampToValueAtTime(options.noiseFrequency * 0.45, now + options.duration);
+  oscillator.type = options.waveType ?? "sawtooth";
+  oscillator.frequency.setValueAtTime(options.startFrequency, now);
+  oscillator.frequency.exponentialRampToValueAtTime(options.endFrequency, now + options.duration);
+  wobble.frequency.setValueAtTime(options.wobble, now);
+  wobbleGain.gain.setValueAtTime(options.wobbleDepth ?? 18, now);
+  noise.buffer = buffer;
+  noiseGain.gain.setValueAtTime(options.noiseLevel ?? 0.34, now);
+  noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + options.duration);
+
+  wobble.connect(wobbleGain);
+  wobbleGain.connect(oscillator.frequency);
+  oscillator.connect(filter);
+  noise.connect(noiseGain);
+  noiseGain.connect(filter);
+  filter.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start(now);
+  wobble.start(now);
+  noise.start(now);
+  oscillator.stop(now + options.duration);
+  wobble.stop(now + options.duration);
+  noise.stop(now + options.duration);
 }
 
 function syncSelectionRings() {
@@ -3347,16 +3509,12 @@ function syncSelectionRings() {
       marker.scale.multiplyScalar(1.11);
     } else if (marker.userData.kind === "holy-light") {
       marker.scale.multiplyScalar(1.018);
-    } else if (marker.userData.kind === "falling-hammer") {
-      marker.userData.age += 0.016;
-      const progress = THREE.MathUtils.clamp(marker.userData.age / marker.userData.duration, 0, 1);
-      marker.position.y = THREE.MathUtils.lerp(marker.userData.startY, marker.userData.endY, progress);
-      marker.rotation.z -= 0.08;
-      if (progress >= 1 && !marker.userData.impacted) {
-        marker.userData.impacted = true;
-        holyLightBurst(marker.userData.impact, 2.2, 0.85);
-        flash(marker.userData.impact, 0xffe875);
-      }
+    } else if (marker.userData.kind === "brown-cloud") {
+      marker.position.add(marker.userData.velocity);
+      marker.rotation.x += marker.userData.spin?.x ?? 0.02;
+      marker.rotation.y += marker.userData.spin?.y ?? 0.02;
+      marker.rotation.z += marker.userData.spin?.z ?? 0.02;
+      marker.scale.multiplyScalar(1.018);
     } else if (marker.userData.kind === "star-arrow") {
       marker.userData.age += 0.016;
       const progress = THREE.MathUtils.clamp(marker.userData.age / marker.userData.duration, 0, 1);
@@ -3458,7 +3616,7 @@ function syncUi() {
 
   squadEl.innerHTML = "";
   heroDockEl.innerHTML = "";
-  heroes(true).forEach((unit) => {
+  sortedHeroesForHud().forEach((unit) => {
     const sleeping = unit.asleep || unit.reviveTimer > 0 || unit.hp <= 0;
     const avatar = document.createElement("button");
     avatar.type = "button";
@@ -3492,6 +3650,10 @@ function syncUi() {
     });
     squadEl.appendChild(card);
   });
+}
+
+function sortedHeroesForHud() {
+  return heroes(true).slice().sort((a, b) => (heroStartSlots[a.id] ?? 99) - (heroStartSlots[b.id] ?? 99));
 }
 
 function heroDisplayName(hero) {
