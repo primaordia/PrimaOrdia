@@ -2545,8 +2545,7 @@ function castInnerLight(hero) {
     enemy.hp -= 20;
     flash(enemy.mesh.position, 0xfff0a6);
   });
-  holyLightBurst(hero.mesh.position, 2, 6);
-  healingBubbles(hero.mesh.position);
+  flash(hero.mesh.position, 0xfff0a6);
   log(`${hero.name} used Inner Light.`);
   return true;
 }
