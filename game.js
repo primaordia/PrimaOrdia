@@ -140,7 +140,7 @@ const heroTemplates = [
     speed: 5.1,
     role: "Holy Paladin",
     archetype: "paladin",
-    portrait: "assets/heroes/frank.svg",
+    portrait: "assets/heroes/frank.png",
     abilities: ["Inner Light", "Hammer of Light", "Selfless Shield"]
   }
 ];
