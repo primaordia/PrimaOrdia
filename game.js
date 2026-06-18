@@ -1378,6 +1378,9 @@ function createUnit(data) {
     sparklyHealTimer: 0,
     sparklyHealTickTimer: 0,
     sparklyHealVisualTimer: 0,
+    spaceCandyHealTimer: 0,
+    spaceCandyHealTickTimer: 0,
+    spaceCandyHealAmount: 0,
     innerLightHotTimer: 0,
     innerLightHotTickTimer: 0,
     belchCostTimer: 0,
@@ -1751,15 +1754,21 @@ function updateMedkits(dt) {
 
     if (kit.type === "meat") {
       hero.hp = Math.min(hero.maxHp, hero.hp + Math.ceil(hero.maxHp * 0.1));
-      hero.atkBuffMultiplier = Math.max(hero.atkBuffMultiplier ?? 1, 1.2);
-      hero.atkBuffTimer = Math.max(hero.atkBuffTimer ?? 0, 15);
-      hero.meatBuffTimer = 15;
+      heroes().forEach((ally) => {
+        ally.atkBuffMultiplier = Math.max(ally.atkBuffMultiplier ?? 1, 1.3);
+        ally.atkBuffTimer = Math.max(ally.atkBuffTimer ?? 0, 15);
+        ally.meatBuffTimer = 15;
+        sparklyHealBurst(ally.mesh.position);
+      });
       hero.speedBuffMultiplier = Math.max(hero.speedBuffMultiplier ?? 1, 1.33);
       hero.speedBuffTimer = Math.max(hero.speedBuffTimer ?? 0, 10);
-      sparklyHealBurst(hero.mesh.position);
       log(`${hero.name} absorbed Bubblenium.`);
     } else {
-      hero.hp = Math.min(hero.maxHp, hero.hp + kit.heal);
+      gold = Math.max(0, gold - 5);
+      goldRoll(kit.mesh.position, "-5G");
+      hero.spaceCandyHealTimer = 3;
+      hero.spaceCandyHealTickTimer = 1;
+      hero.spaceCandyHealAmount = kit.heal / 3;
       healingBubbles(hero.mesh.position);
       log(`${hero.name} ate a Space Candy.`);
     }
@@ -1928,6 +1937,17 @@ function updateStatusEffects(dt) {
         sparklyHealBurst(unit.mesh.position);
         unit.sparklyHealVisualTimer = 0.45;
       }
+    }
+
+    if (unit.spaceCandyHealTimer > 0 && unit.hp > 0) {
+      unit.spaceCandyHealTimer = Math.max(0, unit.spaceCandyHealTimer - dt);
+      unit.spaceCandyHealTickTimer -= dt;
+      if (unit.spaceCandyHealTickTimer <= 0) {
+        unit.hp = Math.min(unit.maxHp, unit.hp + unit.spaceCandyHealAmount);
+        unit.spaceCandyHealTickTimer = 1;
+        healingBubbles(unit.mesh.position);
+      }
+      if (unit.spaceCandyHealTimer === 0) unit.spaceCandyHealAmount = 0;
     }
 
     if (unit.innerLightHotTimer > 0 && unit.hp > 0) {
