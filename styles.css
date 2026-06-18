@@ -164,6 +164,64 @@ canvas {
   background: #111712;
 }
 
+.hero-dock {
+  position: fixed;
+  left: 50%;
+  bottom: 230px;
+  z-index: 4;
+  display: flex;
+  gap: 10px;
+  transform: translateX(-50%);
+  padding: 7px 9px;
+  border: 1px solid rgba(229, 234, 218, 0.18);
+  border-radius: 8px;
+  background: rgba(18, 23, 20, 0.72);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.22);
+}
+
+.hero-avatar {
+  width: 58px;
+  min-height: 68px;
+  padding: 4px;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  border-radius: 8px;
+  background: rgba(38, 47, 40, 0.94);
+}
+
+.hero-avatar img {
+  width: 46px;
+  height: 46px;
+  display: block;
+  border-radius: 7px;
+  object-fit: cover;
+  object-position: center 18%;
+  border: 2px solid rgba(245, 243, 232, 0.28);
+}
+
+.hero-avatar small {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hero-avatar.active {
+  border-color: var(--hero);
+  box-shadow: 0 0 0 2px rgba(98, 198, 223, 0.38);
+}
+
+.hero-avatar.sleeping {
+  opacity: 0.62;
+  filter: saturate(0.65);
+}
+
 .hud {
   bottom: max(12px, env(safe-area-inset-bottom));
   padding: 12px;
@@ -395,6 +453,26 @@ canvas {
     gap: 8px;
   }
 
+  .hero-dock {
+    bottom: 206px;
+    gap: 7px;
+    padding: 6px 7px;
+  }
+
+  .hero-avatar {
+    width: 50px;
+    min-height: 58px;
+  }
+
+  .hero-avatar img {
+    width: 39px;
+    height: 39px;
+  }
+
+  .hero-avatar small {
+    font-size: 9px;
+  }
+
   .squad {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
@@ -434,6 +512,10 @@ canvas {
 @media (orientation: portrait) and (max-height: 760px) {
   .squad {
     display: none;
+  }
+
+  .hero-dock {
+    bottom: 194px;
   }
 
   .topbar {

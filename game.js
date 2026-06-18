@@ -2,6 +2,7 @@ import * as THREE from "./vendor/three.module.js";
 
 const canvas = document.querySelector("#battlefield");
 const squadEl = document.querySelector("#squad");
+const heroDockEl = document.querySelector("#heroDock");
 const abilitiesPanelEl = document.querySelector("#abilitiesPanel");
 const countdownOverlayEl = document.querySelector("#countdownOverlay");
 const selectedNameEl = document.querySelector("#selectedName");
@@ -203,6 +204,7 @@ function randomizeScenery() {
   ground.material.color.setHex(currentBiome.ground);
   addTerrainPatches();
   addForestRing();
+  addEdgeDetailTiles();
   addRandomMountains();
   addRandomWater();
   addRandomSettlements();
@@ -269,6 +271,59 @@ function addForestRing() {
       addTree(center.x + Math.cos(angle) * radius, center.z + Math.sin(angle) * radius, trunkMat, leafMats[(cluster + i) % leafMats.length], 0.72 + Math.random() * 0.34);
     }
   }
+}
+
+function addEdgeDetailTiles() {
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4b3325, roughness: 0.9 });
+  const leafMats = currentBiome.tree.map((color) => new THREE.MeshStandardMaterial({ color, roughness: 0.86 }));
+  const rockMat = new THREE.MeshStandardMaterial({ color: 0x5c6458, roughness: 0.9 });
+  const patchMats = currentBiome.patch.map((color) => new THREE.MeshStandardMaterial({ color, roughness: 0.95 }));
+  const edge = worldSize / 2 - 1.15;
+  const sides = [
+    { axis: "z", sign: -1 },
+    { axis: "z", sign: 1 },
+    { axis: "x", sign: -1 },
+    { axis: "x", sign: 1 }
+  ];
+
+  sides.forEach((side, sideIndex) => {
+    for (let i = 0; i < 16; i += 1) {
+      const along = THREE.MathUtils.randFloat(-edge + 1.2, edge - 1.2);
+      const inset = THREE.MathUtils.randFloat(0.2, 2.2);
+      const x = side.axis === "x" ? side.sign * (edge - inset) : along;
+      const z = side.axis === "z" ? side.sign * (edge - inset) : along;
+
+      if (i % 5 === 0) {
+        const patch = new THREE.Mesh(
+          new THREE.PlaneGeometry(1.4 + Math.random() * 1.8, 0.9 + Math.random() * 1.5),
+          patchMats[(sideIndex + i) % patchMats.length]
+        );
+        patch.rotation.set(-Math.PI / 2, 0, Math.random() * Math.PI);
+        patch.position.set(x, 0.038, z);
+        patch.receiveShadow = true;
+        addScenery(patch);
+      }
+
+      if (i % 3 === 0) {
+        const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.28 + Math.random() * 0.42), rockMat);
+        rock.position.set(x + THREE.MathUtils.randFloatSpread(0.8), 0.28, z + THREE.MathUtils.randFloatSpread(0.8));
+        rock.rotation.set(Math.random(), Math.random(), Math.random());
+        rock.scale.y = 0.65 + Math.random() * 0.5;
+        rock.castShadow = true;
+        rock.receiveShadow = true;
+        addScenery(rock);
+        continue;
+      }
+
+      addTree(
+        x + THREE.MathUtils.randFloatSpread(0.7),
+        z + THREE.MathUtils.randFloatSpread(0.7),
+        trunkMat,
+        leafMats[(sideIndex + i) % leafMats.length],
+        0.62 + Math.random() * 0.36
+      );
+    }
+  });
 }
 
 function addTree(x, z, trunkMat, leafMat, scale) {
@@ -2741,7 +2796,19 @@ function syncUi() {
   upgradeBtn.disabled = !hero || gold < cost || state !== "playing";
 
   squadEl.innerHTML = "";
+  heroDockEl.innerHTML = "";
   heroes().forEach((unit) => {
+    const avatar = document.createElement("button");
+    avatar.type = "button";
+    avatar.className = `hero-avatar ${selectedId === unit.id ? "active" : ""} ${unit.asleep ? "sleeping" : ""}`;
+    avatar.setAttribute("aria-label", `Select ${unit.name}`);
+    avatar.innerHTML = `
+      ${unit.portrait ? `<img src="${unit.portrait}" alt="${unit.name}">` : `<span>${unit.name[0]}</span>`}
+      <small>${unit.name}</small>
+    `;
+    avatar.addEventListener("click", () => selectHero(unit.id));
+    heroDockEl.appendChild(avatar);
+
     const card = document.createElement("button");
     card.type = "button";
     card.className = `hero-card ${selectedId === unit.id ? "active" : ""}`;
