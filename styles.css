@@ -444,6 +444,11 @@ canvas {
   line-height: 1.25;
 }
 
+.stat-bonus {
+  color: #63d463;
+  font-weight: 900;
+}
+
 .log {
   position: fixed;
   left: 50%;

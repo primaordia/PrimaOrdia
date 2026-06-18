@@ -24,7 +24,8 @@ const textureLoader = new THREE.TextureLoader();
 const faceTextures = new Map();
 const heroVisualScale = 1.35;
 const missionDuration = 90;
-const heroUpkeepCost = 30;
+const heroUpkeepCost = 10;
+const heroReviveCost = 15;
 const heroSleepDuration = 10;
 const sausageRainRadius = 2.66;
 const abilityCooldownDurations = {
@@ -32,14 +33,14 @@ const abilityCooldownDurations = {
   "Solar Burst": 5,
   "Wing Dash": 8,
   "Sparkly Heal": 3,
-  "Berry Shield": 16,
+  "Berry Shield": 8,
   "Flame Breath": 3,
   "Star Shot": 15,
   "Shadow Step": 5,
   "Sausage Rain": 5,
   "Inner Light": 1,
-  "Hammer of Light": 3,
-  "Selfless Shield": 5
+  "Holy Fart": 3,
+  "Selfless Belch": 5
 };
 const biomeThemes = [
   { name: "Forest", sky: 0x192018, fog: 0x192018, ground: 0x3a4634, patch: [0x425338, 0x2f3f35, 0x4a5137], water: 0x357b8f, mountain: 0x5f665f, tree: [0x26482f, 0x315d38, 0x516b39] },
@@ -120,12 +121,12 @@ const heroTemplates = [
     hp: 118,
     atk: 16,
     def: 1,
-    range: 3,
     speed: 6.35,
     role: "Star Ranger",
     archetype: "ranger",
     portrait: "assets/heroes/poliana.png",
     faceTexture: "assets/heroes/poliana-face.png",
+    range: 6,
     abilities: ["Star Shot", "Shadow Step", "Sausage Rain"]
   },
   {
@@ -141,7 +142,7 @@ const heroTemplates = [
     role: "Holy Paladin",
     archetype: "paladin",
     portrait: "assets/heroes/frank.png",
-    abilities: ["Inner Light", "Hammer of Light", "Selfless Shield"]
+    abilities: ["Inner Light", "Holy Fart", "Selfless Belch"]
   }
 ];
 
@@ -1113,6 +1114,34 @@ function buildEnemyModel(group, data, bodyMat, accentMat, darkMat) {
   head.castShadow = true;
   group.add(head);
 
+  const eyeMat = new THREE.MeshBasicMaterial({ color: data.archetype === "caster" ? 0x67d7a2 : 0xffe0a4 });
+  [-0.14, 0.14].forEach((x) => {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.045 * scale, 8, 6), eyeMat);
+    eye.position.set(x * scale, 1.8 * scale, 0.36 * scale);
+    group.add(eye);
+  });
+
+  const browMat = new THREE.MeshStandardMaterial({ color: data.accent ?? 0x3a1e18, roughness: 0.7 });
+  [-0.13, 0.13].forEach((x, index) => {
+    const brow = new THREE.Mesh(new THREE.BoxGeometry(0.18 * scale, 0.035 * scale, 0.035 * scale), browMat);
+    brow.position.set(x * scale, 1.91 * scale, 0.35 * scale);
+    brow.rotation.z = index === 0 ? -0.28 : 0.28;
+    group.add(brow);
+  });
+
+  const toothMat = new THREE.MeshBasicMaterial({ color: 0xf8f0d0 });
+  [-0.06, 0.06].forEach((x) => {
+    const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.026 * scale, 0.1 * scale, 5), toothMat);
+    tooth.position.set(x * scale, 1.61 * scale, 0.39 * scale);
+    tooth.rotation.x = Math.PI;
+    group.add(tooth);
+  });
+
+  const belt = new THREE.Mesh(new THREE.TorusGeometry(0.46 * scale, 0.035 * scale, 8, 26), darkMat);
+  belt.position.y = 1.0 * scale;
+  belt.rotation.x = Math.PI / 2;
+  group.add(belt);
+
   const hornLeft = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.42, 6), accentMat);
   hornLeft.position.set(-0.26 * scale, 2.08 * scale, 0);
   hornLeft.rotation.z = 0.45;
@@ -1125,6 +1154,13 @@ function buildEnemyModel(group, data, bodyMat, accentMat, darkMat) {
   group.add(hornRight);
 
   if (data.archetype === "brute") {
+    [-0.54, 0.54].forEach((x) => {
+      const spike = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.42, 6), accentMat);
+      spike.position.set(x, 1.55, 0.05);
+      spike.rotation.z = x < 0 ? 1.2 : -1.2;
+      spike.castShadow = true;
+      group.add(spike);
+    });
     const club = new THREE.Mesh(new THREE.BoxGeometry(0.28, 1.7, 0.28), darkMat);
     club.position.set(0.85, 1.2, 0.08);
     club.rotation.z = -0.45;
@@ -1132,6 +1168,9 @@ function buildEnemyModel(group, data, bodyMat, accentMat, darkMat) {
     group.add(club);
   } else if (data.archetype === "caster") {
     addWeapon(group, "staff", accentMat, 0.82);
+    const orb = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 8), eyeMat);
+    orb.position.set(-0.54, 2.2, 0.2);
+    group.add(orb);
   } else {
     addWeapon(group, "axe", darkMat, 0.9);
   }
@@ -1277,6 +1316,11 @@ function createUnit(data) {
     sleepUi: null,
     shieldDefBonus: 0,
     shieldTimer: 0,
+    selflessShieldTimer: 0,
+    selflessShieldOwnerId: null,
+    atkBuffMultiplier: 1,
+    atkBuffTimer: 0,
+    meatBuffTimer: 0,
     burnTimer: 0,
     burnTickTimer: 0,
     sausageRainTimer: 0,
@@ -1285,9 +1329,18 @@ function createUnit(data) {
     sparklyHealTimer: 0,
     sparklyHealTickTimer: 0,
     sparklyHealVisualTimer: 0,
+    innerLightHotTimer: 0,
+    innerLightHotTickTimer: 0,
+    belchCostTimer: 0,
+    belchCostTickTimer: 0,
     archetype: data.archetype,
     side: data.side,
     level: data.level ?? 1,
+    xp: data.side === "hero" ? 0 : undefined,
+    xpToNext: data.side === "hero" ? xpForNextLevel(data.level ?? 1) : undefined,
+    baseMaxHp: data.hp,
+    baseAtk: data.atk,
+    baseDef: data.def ?? 0,
     hp: data.hp,
     maxHp: data.hp,
     atk: data.atk,
@@ -1296,6 +1349,10 @@ function createUnit(data) {
     speed: data.speed,
     cooldown: 0,
     reviveTimer: 0,
+    attackAnim: 0,
+    attackDuration: 0.28,
+    attackDirection: new THREE.Vector3(),
+    baseScale: data.side === "hero" ? heroVisualScale : 1,
     attackDelay: data.side === "hero" ? 0.85 : 1.15,
     target: null,
     targetPoint: new THREE.Vector3(data.x, 0, data.z),
@@ -1419,25 +1476,31 @@ function wakeHero(hero, automatic = false) {
   hero.upkeepPaidMission = wave;
   if (hero.sleepUi) hero.sleepUi.group.visible = false;
   flash(hero.mesh.position, 0xf1d34f);
-  if (!automatic) log(`${hero.name} woke up for ${heroUpkeepCost} gold.`);
+  if (!automatic) log(`${hero.name} woke up for ${wakeCost(hero)} gold.`);
 }
 
 function payHeroUpkeep(heroId) {
   const hero = heroes(true).find((candidate) => candidate.id === heroId);
   if (!hero || !hero.asleep) return;
-  if (gold < heroUpkeepCost) {
-    log(`${hero.name} needs ${heroUpkeepCost} gold to wake up.`);
+  const cost = wakeCost(hero);
+  if (gold < cost) {
+    log(`${hero.name} needs ${cost} gold to wake up.`);
     return;
   }
-  gold -= heroUpkeepCost;
-  goldRoll(hero.mesh.position, `-${heroUpkeepCost}G`);
+  gold -= cost;
+  goldRoll(hero.mesh.position, `-${cost}G`);
   if (hero.hp <= 0) {
     hero.hp = Math.ceil(hero.maxHp * 0.65);
     hero.reviveTimer = 0;
     if (hero.healthBar) hero.healthBar.group.visible = true;
   }
-  wakeHero(hero);
+  wakeHero(hero, true);
+  log(`${hero.name} woke up for ${cost} gold.`);
   syncUi();
+}
+
+function wakeCost(hero) {
+  return hero.sleepReason === "revive" || hero.hp <= 0 || hero.reviveTimer > 0 ? heroReviveCost : heroUpkeepCost;
 }
 
 function spawnEnemyGroup(count, announce = false) {
@@ -1480,15 +1543,17 @@ function clearMedkits() {
 
 function dropMedkits() {
   clearMedkits();
-  const positions = randomFieldPositions(3, 4.5);
+  const positions = randomFieldPositions(5, 4.5);
 
   positions.forEach((position, index) => {
-    const kit = createMedkit(`medkit-${wave}-${Date.now()}-${index}`, position);
-    medkits.push(kit);
-    scene.add(kit.mesh);
+    const pickup = index < 3
+      ? createMedkit(`medkit-${wave}-${Date.now()}-${index}`, position)
+      : createMeatPickup(`meat-${wave}-${Date.now()}-${index}`, position);
+    medkits.push(pickup);
+    scene.add(pickup.mesh);
   });
   medkitSpawnTimer = 15;
-  log("First aid kits appeared.");
+  log("First aid kits and meat appeared.");
 }
 
 function randomFieldPositions(count, minDistance) {
@@ -1552,7 +1617,47 @@ function createMedkit(id, position) {
   group.traverse((child) => {
     child.userData.medkitId = id;
   });
-  return { id, mesh: group, highlight, heal: 50, bob: Math.random() * Math.PI * 2, ttl: 15 };
+  return { id, type: "medkit", label: "Medikit", mesh: group, highlight, heal: 50, bob: Math.random() * Math.PI * 2, ttl: 15 };
+}
+
+function createMeatPickup(id, position) {
+  const group = new THREE.Group();
+  const meatMat = new THREE.MeshStandardMaterial({ color: 0xb83a2f, roughness: 0.5, metalness: 0.04 });
+  const boneMat = new THREE.MeshStandardMaterial({ color: 0xf3e0bd, roughness: 0.52, metalness: 0.02 });
+
+  const bone = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.05, 10), boneMat);
+  bone.rotation.z = Math.PI / 2;
+  bone.position.y = 0.36;
+  bone.castShadow = true;
+  group.add(bone);
+
+  [-0.58, 0.58].forEach((x) => {
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), boneMat);
+    knob.position.set(x, 0.36, 0);
+    knob.castShadow = true;
+    group.add(knob);
+  });
+
+  const meat = new THREE.Mesh(new THREE.SphereGeometry(0.31, 14, 10), meatMat);
+  meat.scale.set(1.15, 0.9, 0.85);
+  meat.position.set(0, 0.42, 0);
+  meat.castShadow = true;
+  group.add(meat);
+
+  const highlight = new THREE.Mesh(
+    new THREE.BoxGeometry(1.1, 0.72, 0.72),
+    new THREE.MeshBasicMaterial({ color: 0xf28a28, transparent: true, opacity: 0.2, wireframe: true, depthTest: false })
+  );
+  highlight.position.y = 0.38;
+  highlight.visible = false;
+  group.add(highlight);
+
+  group.position.copy(position);
+  group.userData.type = "meat";
+  group.traverse((child) => {
+    child.userData.medkitId = id;
+  });
+  return { id, type: "meat", label: "Meat", mesh: group, highlight, bob: Math.random() * Math.PI * 2, ttl: 15 };
 }
 
 function updateMedkits(dt) {
@@ -1574,13 +1679,27 @@ function updateMedkits(dt) {
       return false;
     }
 
-    const hero = heroes().find((candidate) => candidate.mesh.position.distanceTo(kit.mesh.position) < 1.25 && candidate.hp < candidate.maxHp);
+    const hero = heroes().find((candidate) => (
+      candidate.mesh.position.distanceTo(kit.mesh.position) < 1.25
+      && (kit.type === "meat" || candidate.hp < candidate.maxHp)
+    ));
     if (!hero) return true;
 
-    hero.hp = Math.min(hero.maxHp, hero.hp + kit.heal);
+    if (kit.type === "meat") {
+      hero.hp = Math.min(hero.maxHp, hero.hp + Math.ceil(hero.maxHp * 0.1));
+      hero.atkBuffMultiplier = Math.max(hero.atkBuffMultiplier ?? 1, 1.2);
+      hero.atkBuffTimer = Math.max(hero.atkBuffTimer ?? 0, 15);
+      hero.meatBuffTimer = 15;
+      hero.speedBuffMultiplier = Math.max(hero.speedBuffMultiplier ?? 1, 1.33);
+      hero.speedBuffTimer = Math.max(hero.speedBuffTimer ?? 0, 10);
+      sparklyHealBurst(hero.mesh.position);
+      log(`${hero.name} gained a meat boost.`);
+    } else {
+      hero.hp = Math.min(hero.maxHp, hero.hp + kit.heal);
+      healingBubbles(hero.mesh.position);
+      log(`${hero.name} used a first aid kit.`);
+    }
     flash(hero.mesh.position, 0x63d463);
-    healingBubbles(hero.mesh.position);
-    log(`${hero.name} used a first aid kit.`);
     scene.remove(kit.mesh);
     return false;
   });
@@ -1626,6 +1745,7 @@ function update(dt) {
   updateHeroBuffs(dt);
   updateStatusEffects(dt);
   updateRevives(dt);
+  updateAttackAnimations(dt);
   units.forEach((unit) => updateUnit(unit, dt));
   updateMedkits(dt);
   removeDeadUnits();
@@ -1661,10 +1781,22 @@ function updateHeroBuffs(dt) {
   heroes(true).forEach((hero) => {
     if (hero.speedBuffTimer <= 0) {
       hero.speedBuffMultiplier = 1;
-      return;
+    } else {
+      hero.speedBuffTimer = Math.max(0, hero.speedBuffTimer - dt);
+      if (hero.speedBuffTimer === 0) hero.speedBuffMultiplier = 1;
     }
-    hero.speedBuffTimer = Math.max(0, hero.speedBuffTimer - dt);
-    if (hero.speedBuffTimer === 0) hero.speedBuffMultiplier = 1;
+
+    if (hero.atkBuffTimer <= 0) {
+      hero.atkBuffMultiplier = 1;
+      hero.meatBuffTimer = 0;
+    } else {
+      hero.atkBuffTimer = Math.max(0, hero.atkBuffTimer - dt);
+      hero.meatBuffTimer = Math.max(0, hero.meatBuffTimer - dt);
+      if (hero.atkBuffTimer === 0) {
+        hero.atkBuffMultiplier = 1;
+        hero.meatBuffTimer = 0;
+      }
+    }
   });
 }
 
@@ -1672,7 +1804,25 @@ function updateStatusEffects(dt) {
   units.forEach((unit) => {
     if (unit.shieldTimer > 0) {
       unit.shieldTimer = Math.max(0, unit.shieldTimer - dt);
-      if (unit.shieldTimer === 0) unit.shieldDefBonus = 0;
+      if (unit.shieldTimer === 0) {
+        unit.shieldDefBonus = 0;
+        unit.selflessShieldOwnerId = null;
+      }
+    }
+
+    if (unit.selflessShieldTimer > 0) {
+      unit.selflessShieldTimer = Math.max(0, unit.selflessShieldTimer - dt);
+      if (unit.selflessShieldTimer === 0) unit.selflessShieldOwnerId = null;
+    }
+
+    if (unit.belchCostTimer > 0 && unit.hp > 0) {
+      unit.belchCostTimer = Math.max(0, unit.belchCostTimer - dt);
+      unit.belchCostTickTimer -= dt;
+      if (unit.belchCostTickTimer <= 0) {
+        unit.hp = Math.max(1, unit.hp - 15);
+        unit.belchCostTickTimer = 1;
+        flash(unit.mesh.position, 0xd6a65a);
+      }
     }
 
     if (unit.burnTimer > 0) {
@@ -1712,6 +1862,16 @@ function updateStatusEffects(dt) {
       if (unit.sparklyHealVisualTimer <= 0) {
         sparklyHealBurst(unit.mesh.position);
         unit.sparklyHealVisualTimer = 0.45;
+      }
+    }
+
+    if (unit.innerLightHotTimer > 0 && unit.hp > 0) {
+      unit.innerLightHotTimer = Math.max(0, unit.innerLightHotTimer - dt);
+      unit.innerLightHotTickTimer -= dt;
+      if (unit.innerLightHotTickTimer <= 0) {
+        unit.hp = Math.min(unit.maxHp, unit.hp + 20);
+        unit.innerLightHotTickTimer = 1;
+        holyLightBurst(unit.mesh.position, 0.9, 0.55);
       }
     }
   });
@@ -1777,16 +1937,100 @@ function updateUnit(unit, dt) {
   }
 }
 
+function updateAttackAnimations(dt) {
+  units.forEach((unit) => {
+    if (unit.attackAnim <= 0) {
+      unit.mesh.scale.setScalar(unit.baseScale);
+      unit.mesh.position.y = 0;
+      unit.mesh.rotation.z = 0;
+      return;
+    }
+
+    unit.attackAnim = Math.max(0, unit.attackAnim - dt);
+    const progress = 1 - unit.attackAnim / unit.attackDuration;
+    const strike = Math.sin(progress * Math.PI);
+    unit.mesh.position.y = strike * 0.14;
+    unit.mesh.rotation.z = unit.attackDirection.x * strike * 0.12;
+    unit.mesh.scale.set(
+      unit.baseScale * (1 + strike * 0.08),
+      unit.baseScale * (1 - strike * 0.04),
+      unit.baseScale * (1 + strike * 0.08)
+    );
+
+    if (unit.attackAnim === 0) {
+      unit.mesh.position.y = 0;
+      unit.mesh.rotation.z = 0;
+      unit.mesh.scale.setScalar(unit.baseScale);
+    }
+  });
+}
+
+function triggerAttackAnimation(attacker, defender) {
+  attacker.attackAnim = attacker.attackDuration;
+  attacker.attackDirection.copy(defender.mesh.position).sub(attacker.mesh.position).setY(0);
+  if (attacker.attackDirection.lengthSq() === 0) {
+    attacker.attackDirection.set(Math.sin(attacker.mesh.rotation.y), 0, Math.cos(attacker.mesh.rotation.y));
+  }
+  attacker.attackDirection.normalize();
+}
+
 function damage(attacker, defender) {
-  const rawAttack = attacker.side === "enemy" ? attacker.atk * 0.125 : attacker.atk;
-  const amount = Math.max(1, Math.ceil(rawAttack - defender.def - (defender.shieldDefBonus ?? 0)));
-  defender.hp -= amount;
-  flash(defender.mesh.position, attacker.side === "hero" ? 0x9be7f5 : 0xe76d55);
+  triggerAttackAnimation(attacker, defender);
+  const actualDefender = selflessShieldTarget(defender) ?? defender;
+  const rawAttack = attacker.side === "enemy" ? attacker.atk * 0.125 : effectiveAtk(attacker);
+  const amount = Math.max(1, Math.ceil(rawAttack - actualDefender.def - (actualDefender.shieldDefBonus ?? 0)));
+  actualDefender.hp -= amount;
+  flash(actualDefender.mesh.position, attacker.side === "hero" ? 0x9be7f5 : 0xe76d55);
+  if (actualDefender !== defender) {
+    holyLightBurst(defender.mesh.position, 0.85, 0.45);
+    goldShieldAura(actualDefender, 0.8);
+  }
   if (defender.hp <= 0 && attacker.side === "hero") {
     gold += 12;
-    attacker.level += 0.1;
+    awardHeroXp(attacker, xpForEnemy(defender));
     log(`${attacker.name} defeated ${defender.name}.`);
   }
+}
+
+function selflessShieldTarget(defender) {
+  if (defender.side !== "hero" || defender.selflessShieldTimer <= 0 || !defender.selflessShieldOwnerId) return null;
+  const owner = units.find((unit) => unit.id === defender.selflessShieldOwnerId && unit.hp > 0 && !unit.asleep);
+  return owner ?? null;
+}
+
+function effectiveAtk(unit) {
+  return unit.atk * (unit.atkBuffMultiplier ?? 1);
+}
+
+function xpForEnemy(enemy) {
+  return enemy.archetype === "brute" ? 30 : 10;
+}
+
+function xpForNextLevel(level) {
+  return Math.ceil(200 * Math.pow(1.33, Math.max(0, Math.floor(level) - 1)));
+}
+
+function awardHeroXp(hero, amount) {
+  if (!hero || hero.side !== "hero") return;
+  hero.xp = (hero.xp ?? 0) + amount;
+  hero.xpToNext = hero.xpToNext ?? xpForNextLevel(hero.level);
+  while (hero.xp >= hero.xpToNext) {
+    hero.xp -= hero.xpToNext;
+    hero.level = Math.floor(hero.level) + 1;
+    applyXpLevelStats(hero);
+    hero.xpToNext = xpForNextLevel(hero.level);
+    flash(hero.mesh.position, 0xf1d34f);
+    log(`${hero.name} reached level ${hero.level}.`);
+  }
+}
+
+function applyXpLevelStats(hero) {
+  const previousMax = hero.maxHp;
+  const multiplier = Math.pow(1.02, Math.max(0, Math.floor(hero.level) - 1));
+  hero.maxHp = Math.ceil(hero.baseMaxHp * multiplier);
+  hero.atk = Math.round(hero.baseAtk * multiplier * 10) / 10;
+  hero.def = Math.round(hero.baseDef * multiplier * 10) / 10;
+  hero.hp = Math.min(hero.maxHp, hero.hp + Math.max(0, hero.maxHp - previousMax));
 }
 
 function moveTo(unit, point, dt) {
@@ -2081,7 +2325,7 @@ function updateUpkeepWidgets(dt) {
       hero.sleepUi.countdownSprite.visible = false;
     }
     hero.sleepUi.payButton.visible = true;
-    hero.sleepUi.payButton.material.opacity = gold >= heroUpkeepCost ? 1 : 0.58;
+    hero.sleepUi.payButton.material.opacity = gold >= wakeCost(hero) ? 1 : 0.58;
   });
 }
 
@@ -2130,7 +2374,7 @@ function onPointerMove(event) {
     removeHoverPopup();
     highlightedMedkit = hitMedkit;
     highlightedMedkit.highlight.visible = true;
-    hoverPopup = createNamePopup({ id: hitMedkit.id, name: "Medikit", side: "medkit", hp: 1, mesh: hitMedkit.mesh });
+    hoverPopup = createNamePopup({ id: hitMedkit.id, name: hitMedkit.label, side: "medkit", hp: 1, mesh: hitMedkit.mesh });
     hoveredMedkitId = hitMedkit.id;
     scene.add(hoverPopup.group);
     positionNamePopup(hoverPopup);
@@ -2159,7 +2403,7 @@ function onPointerDown(event) {
     if (hitUnit.side === "hero") {
       if (hitUnit.asleep) {
         selectHero(hitUnit.id);
-        log(`Tap Wake Up to revive ${hitUnit.name} for ${heroUpkeepCost} gold.`);
+        log(`Tap Wake Up to revive ${hitUnit.name} for ${wakeCost(hitUnit)} gold.`);
         return;
       }
       selectHero(hitUnit.id);
@@ -2307,12 +2551,12 @@ function chooseAbility(heroId, ability) {
     syncUi();
     return;
   }
-  if (ability === "Hammer of Light") {
+  if (ability === "Holy Fart") {
     if (castHammerOfLight(hero)) startAbilityCooldown(hero, ability);
     syncUi();
     return;
   }
-  if (ability === "Selfless Shield") {
+  if (ability === "Selfless Belch") {
     if (castSelflessShield(hero)) startAbilityCooldown(hero, ability);
     syncUi();
     return;
@@ -2527,6 +2771,12 @@ function castSausageRain(hero) {
     enemy.sausageRainTickTimer = 1;
     enemy.sausageRainVisualTimer = 0;
   });
+  heroes().forEach((ally) => {
+    if (ally.mesh.position.distanceTo(target.mesh.position) > 4) return;
+    ally.atkBuffMultiplier = Math.max(ally.atkBuffMultiplier ?? 1, 1.2);
+    ally.atkBuffTimer = Math.max(ally.atkBuffTimer ?? 0, 5);
+    sparklyHealBurst(ally.mesh.position);
+  });
   sausageRain(target.mesh.position);
   log(`${hero.name} called Sausage Rain on ${affected.length} enemy${affected.length === 1 ? "" : "ies"}.`);
   return affected.length > 0;
@@ -2536,7 +2786,11 @@ function castInnerLight(hero) {
   let affected = 0;
   heroes().forEach((ally) => {
     if (ally.mesh.position.distanceTo(hero.mesh.position) > 3.5) return;
-    ally.hp = Math.min(ally.maxHp, ally.hp + 25);
+    const healing = ally.id === hero.id && hero.selflessShieldTimer > 0 ? 75 : 25;
+    ally.hp = Math.min(ally.maxHp, ally.hp + healing);
+    ally.innerLightHotTimer = 3;
+    ally.innerLightHotTickTimer = 1;
+    holyLightBurst(ally.mesh.position, 0.85, 0.55);
     affected += 1;
   });
   enemies().forEach((enemy) => {
@@ -2569,25 +2823,47 @@ function castHammerOfLight(hero) {
     flash(enemy.mesh.position, 0xffe875);
   });
   hammerLightSmash(hero, direction);
-  log(hits ? `${hero.name} used Hammer of Light.` : "Hammer of Light missed.");
-  return hits > 0;
+  log(hits ? `${hero.name} used Holy Fart.` : `${hero.name} called Holy Fart.`);
+  return true;
 }
 
 function castSelflessShield(hero) {
   const nearby = heroes()
-    .filter((ally) => ally.id !== hero.id && ally.mesh.position.distanceTo(hero.mesh.position) <= 3)
+    .filter((ally) => ally.id !== hero.id && ally.mesh.position.distanceTo(hero.mesh.position) <= 4)
     .sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
   if (!nearby) {
-    log("No nearby hero for Selfless Shield.");
-    return false;
+    hero.belchCostTimer = 10;
+    hero.belchCostTickTimer = 1;
+    let hits = 0;
+    enemies().forEach((enemy) => {
+      if (enemy.mesh.position.distanceTo(hero.mesh.position) > 4) return;
+      enemy.hp -= 55;
+      hits += 1;
+      flash(enemy.mesh.position, 0xd6a65a);
+    });
+    holyLightBurst(hero.mesh.position, 1.8, 1.1);
+    log(hits ? `${hero.name} used Selfless Belch.` : `${hero.name} belched bravely.`);
+    return true;
   }
 
+  const beforeHeal = nearby.hp;
   nearby.hp = Math.min(nearby.maxHp, nearby.hp + 70);
+  const actualHealing = nearby.hp - beforeHeal;
+  if (actualHealing > 0) hero.hp = Math.max(1, hero.hp - Math.ceil(actualHealing * 0.5));
   nearby.shieldDefBonus = Math.max(nearby.shieldDefBonus ?? 0, 4);
-  nearby.shieldTimer = 5;
+  nearby.shieldTimer = 8;
+  nearby.selflessShieldTimer = 8;
+  nearby.selflessShieldOwnerId = hero.id;
+  hero.shieldDefBonus = Math.max(hero.shieldDefBonus ?? 0, 3);
+  hero.shieldTimer = 8;
+  hero.selflessShieldTimer = 8;
+  hero.selflessShieldOwnerId = null;
   holyLightBurst(nearby.mesh.position, 1.2, 1.4);
+  holyLightBurst(hero.mesh.position, 0.95, 1.1);
+  goldShieldAura(nearby, 8);
+  goldShieldAura(hero, 8);
   healingBubbles(nearby.mesh.position);
-  log(`${hero.name} shielded ${nearby.name}.`);
+  log(`${hero.name} used Selfless Belch on ${nearby.name}.`);
   return true;
 }
 
@@ -2991,8 +3267,31 @@ function holyLightBurst(position, radius = 1.5, life = 0.9) {
 
 function hammerLightSmash(hero, direction) {
   const origin = hero.mesh.position.clone().add(direction.clone().multiplyScalar(1.25));
+  const hammer = new THREE.Group();
+  const goldMat = new THREE.MeshBasicMaterial({ color: 0xffe875, transparent: true, opacity: 0.96 });
+  const whiteMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.92 });
+  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 2.4, 10), goldMat);
+  handle.rotation.z = Math.PI / 2;
+  hammer.add(handle);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.48, 0.55), whiteMat);
+  head.position.x = 1.15;
+  hammer.add(head);
+  hammer.position.set(origin.x, 6.8, origin.z);
+  hammer.rotation.set(0.2, hero.mesh.rotation.y, -0.55);
+  hammer.scale.setScalar(1.7);
+  hammer.userData.kind = "falling-hammer";
+  hammer.userData.life = 0.95;
+  hammer.userData.age = 0;
+  hammer.userData.duration = 0.42;
+  hammer.userData.startY = 6.8;
+  hammer.userData.endY = 0.9;
+  hammer.userData.impact = origin.clone();
+  hammer.userData.impacted = false;
+  scene.add(hammer);
+  markers.push(hammer);
+
   const cone = new THREE.Mesh(
-    new THREE.ConeGeometry(1.15, 2.25, 32, 1, true),
+    new THREE.ConeGeometry(1.75, 3.05, 32, 1, true),
     new THREE.MeshBasicMaterial({ color: 0xffe875, transparent: true, opacity: 0.36, side: THREE.DoubleSide })
   );
   cone.rotation.x = Math.PI / 2;
@@ -3004,6 +3303,23 @@ function hammerLightSmash(hero, direction) {
   scene.add(cone);
   markers.push(cone);
   flash(origin, 0xffe875);
+}
+
+function goldShieldAura(hero, duration) {
+  const shield = new THREE.Group();
+  const shieldMat = new THREE.MeshBasicMaterial({ color: 0xffd85a, transparent: true, opacity: 0.82, side: THREE.DoubleSide });
+  const face = new THREE.Mesh(new THREE.CircleGeometry(0.52, 5), shieldMat);
+  face.scale.set(0.8, 1.2, 1);
+  shield.add(face);
+  const rim = new THREE.Mesh(new THREE.RingGeometry(0.48, 0.58, 5), shieldMat.clone());
+  rim.scale.set(0.8, 1.2, 1);
+  shield.add(rim);
+  shield.userData.kind = "gold-shield";
+  shield.userData.life = duration;
+  shield.userData.ownerId = hero.id;
+  shield.userData.age = 0;
+  scene.add(shield);
+  markers.push(shield);
 }
 
 function syncSelectionRings() {
@@ -3031,6 +3347,16 @@ function syncSelectionRings() {
       marker.scale.multiplyScalar(1.11);
     } else if (marker.userData.kind === "holy-light") {
       marker.scale.multiplyScalar(1.018);
+    } else if (marker.userData.kind === "falling-hammer") {
+      marker.userData.age += 0.016;
+      const progress = THREE.MathUtils.clamp(marker.userData.age / marker.userData.duration, 0, 1);
+      marker.position.y = THREE.MathUtils.lerp(marker.userData.startY, marker.userData.endY, progress);
+      marker.rotation.z -= 0.08;
+      if (progress >= 1 && !marker.userData.impacted) {
+        marker.userData.impacted = true;
+        holyLightBurst(marker.userData.impact, 2.2, 0.85);
+        flash(marker.userData.impact, 0xffe875);
+      }
     } else if (marker.userData.kind === "star-arrow") {
       marker.userData.age += 0.016;
       const progress = THREE.MathUtils.clamp(marker.userData.age / marker.userData.duration, 0, 1);
@@ -3057,6 +3383,16 @@ function syncSelectionRings() {
       marker.rotation.x += 0.035;
       marker.rotation.y += 0.12;
       marker.rotation.z += 0.025;
+    } else if (marker.userData.kind === "gold-shield") {
+      marker.userData.age += 0.016;
+      const owner = units.find((unit) => unit.id === marker.userData.ownerId && unit.hp > 0);
+      if (owner) {
+        const forward = new THREE.Vector3(Math.sin(owner.mesh.rotation.y), 0, Math.cos(owner.mesh.rotation.y));
+        marker.position.copy(owner.mesh.position).add(forward.multiplyScalar(0.85));
+        marker.position.y = 1.65 + Math.sin(marker.userData.age * 5) * 0.08;
+        marker.quaternion.copy(camera.quaternion);
+      }
+      marker.scale.setScalar(1 + Math.sin(marker.userData.age * 9) * 0.08);
     } else {
       marker.scale.multiplyScalar(1.035);
     }
@@ -3088,8 +3424,8 @@ function syncUi() {
 
   const hero = selectedHero();
   selectedNameEl.textContent = hero ? heroDisplayName(hero) : "Choose a hero";
-  selectedStatsEl.textContent = hero
-    ? `HP ${Math.max(0, Math.ceil(hero.hp))}/${hero.maxHp} | ATK ${hero.atk} | RNG ${hero.range} | DEF ${hero.def} | LVL ${Math.floor(hero.level)}`
+  selectedStatsEl.innerHTML = hero
+    ? heroStatsHtml(hero)
     : "Tap a hero, then tap the field to move.";
   abilitiesPanelEl.innerHTML = "";
   if (hero) {
@@ -3146,7 +3482,7 @@ function syncUi() {
       ${unit.portrait ? `<img class="hero-card__portrait" src="${unit.portrait}" alt="${unit.name}">` : ""}
       <span class="hero-card__details">
         <strong>${heroDisplayName(unit)}</strong>
-        <small>${sleeping ? "Sleeping | " : ""}LVL ${Math.floor(unit.level)} | ATK ${unit.atk} | RNG ${unit.range} | DEF ${unit.def}</small>
+        <small>${sleeping ? "Sleeping | " : ""}${heroMiniStatsHtml(unit)}</small>
         <span class="bar"><span style="width:${Math.max(0, unit.hp / unit.maxHp) * 100}%"></span></span>
       </span>
     `;
@@ -3160,6 +3496,42 @@ function syncUi() {
 
 function heroDisplayName(hero) {
   return `${hero.name} - ${hero.role}`;
+}
+
+function heroStatsHtml(hero) {
+  return [
+    `HP ${Math.max(0, Math.ceil(hero.hp))}/${formatStat(hero.maxHp)}`,
+    `ATK ${formatStat(hero.atk)}${bonusMarkup(atkBonus(hero))}`,
+    `RNG ${formatStat(hero.range)}`,
+    `DEF ${formatStat(hero.def)}${bonusMarkup(defBonus(hero))}`,
+    `LVL ${Math.floor(hero.level)}`,
+    `XP ${Math.floor(hero.xp ?? 0)}/${hero.xpToNext ?? xpForNextLevel(hero.level)}`
+  ].join(" | ");
+}
+
+function heroMiniStatsHtml(hero) {
+  return [
+    `LVL ${Math.floor(hero.level)}`,
+    `ATK ${formatStat(hero.atk)}${bonusMarkup(atkBonus(hero))}`,
+    `RNG ${formatStat(hero.range)}`,
+    `DEF ${formatStat(hero.def)}${bonusMarkup(defBonus(hero))}`
+  ].join(" | ");
+}
+
+function bonusMarkup(amount) {
+  return amount > 0 ? ` <span class="stat-bonus">+${formatStat(amount)}</span>` : "";
+}
+
+function atkBonus(hero) {
+  return hero.atkBuffTimer > 0 ? hero.atk * ((hero.atkBuffMultiplier ?? 1) - 1) : 0;
+}
+
+function defBonus(hero) {
+  return hero.shieldTimer > 0 ? hero.shieldDefBonus ?? 0 : 0;
+}
+
+function formatStat(value) {
+  return Number.isInteger(value) ? `${value}` : `${Math.round(value * 10) / 10}`;
 }
 
 function formatTime(seconds) {
