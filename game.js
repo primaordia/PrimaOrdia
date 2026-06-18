@@ -10,6 +10,8 @@ const selectedStatsEl = document.querySelector("#selectedStats");
 const logEl = document.querySelector("#log");
 const goldEl = document.querySelector("#gold");
 const waveEl = document.querySelector("#wave");
+const menuBtn = document.querySelector("#menuBtn");
+const actionMenuEl = document.querySelector("#actionMenu");
 const upgradeBtn = document.querySelector("#upgradeBtn");
 const rallyBtn = document.querySelector("#rallyBtn");
 const restartBtn = document.querySelector("#restartBtn");
@@ -70,6 +72,7 @@ let hoveredMedkitId = null;
 let highlightedMedkit = null;
 let autoRestartTimeout = null;
 let uiRefreshTimer = 0;
+let actionMenuOpen = false;
 
 const heroTemplates = [
   {
@@ -166,9 +169,30 @@ function init() {
   canvas.addEventListener("pointerdown", onPointerDown);
   canvas.addEventListener("pointermove", onPointerMove);
   canvas.addEventListener("pointerleave", removeHoverPopup);
+  menuBtn.addEventListener("click", toggleActionMenu);
+  document.addEventListener("pointerdown", closeActionMenuFromPointer);
   upgradeBtn.addEventListener("click", upgradeSelected);
   rallyBtn.addEventListener("click", rallyHeroes);
-  restartBtn.addEventListener("click", resetGame);
+  restartBtn.addEventListener("click", () => {
+    setActionMenuOpen(false);
+    resetGame();
+  });
+}
+
+function setActionMenuOpen(open) {
+  actionMenuOpen = open;
+  actionMenuEl.classList.toggle("open", open);
+  menuBtn.setAttribute("aria-expanded", String(open));
+}
+
+function toggleActionMenu(event) {
+  event.stopPropagation();
+  setActionMenuOpen(!actionMenuOpen);
+}
+
+function closeActionMenuFromPointer(event) {
+  if (!actionMenuOpen || event.target.closest(".action-menu")) return;
+  setActionMenuOpen(false);
 }
 
 function createWorld() {
@@ -2460,6 +2484,7 @@ function commandMove(point) {
 }
 
 function rallyHeroes() {
+  setActionMenuOpen(false);
   const destination = new THREE.Vector3(0, 0, 5.2);
   heroes().forEach((hero, index) => {
     hero.target = null;
@@ -2470,6 +2495,7 @@ function rallyHeroes() {
 }
 
 function upgradeSelected() {
+  setActionMenuOpen(false);
   const hero = selectedHero();
   if (!hero) return;
   const cost = upgradeCost(hero);
@@ -2804,6 +2830,7 @@ function syncUi() {
     avatar.setAttribute("aria-label", `Select ${unit.name}`);
     avatar.innerHTML = `
       ${unit.portrait ? `<img src="${unit.portrait}" alt="${unit.name}">` : `<span>${unit.name[0]}</span>`}
+      ${unit.asleep ? `<span class="sleep-mark">ZZZ</span>` : ""}
       <small>${unit.name}</small>
     `;
     avatar.addEventListener("click", () => selectHero(unit.id));

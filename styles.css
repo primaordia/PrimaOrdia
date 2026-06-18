@@ -167,7 +167,7 @@ canvas {
 .hero-dock {
   position: fixed;
   left: 50%;
-  bottom: 230px;
+  bottom: 258px;
   z-index: 7;
   display: flex;
   gap: 12px;
@@ -181,6 +181,8 @@ canvas {
 }
 
 .hero-avatar {
+  position: relative;
+  overflow: hidden;
   width: 74px;
   min-height: 82px;
   padding: 6px;
@@ -219,8 +221,29 @@ canvas {
 }
 
 .hero-avatar.sleeping {
-  opacity: 0.62;
-  filter: saturate(0.65);
+  opacity: 0.78;
+  filter: saturate(0.55);
+}
+
+.hero-avatar.sleeping img {
+  filter: grayscale(1) brightness(0.66);
+}
+
+.sleep-mark {
+  position: absolute;
+  top: 23px;
+  left: 50%;
+  z-index: 2;
+  transform: translateX(-50%) rotate(-28deg);
+  border-radius: 6px;
+  background: rgba(10, 13, 11, 0.78);
+  border: 1px solid rgba(245, 243, 232, 0.36);
+  padding: 2px 6px;
+  color: #f5f3e8;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1;
 }
 
 .hud {
@@ -313,38 +336,11 @@ canvas {
   touch-action: manipulation;
 }
 
-.ability-btn > span {
-  position: relative;
-  z-index: 2;
-}
-
 .ability-btn.ready {
   border-color: rgba(241, 211, 79, 0.95);
   background: linear-gradient(180deg, rgba(112, 89, 27, 0.98), rgba(54, 43, 18, 0.98));
   box-shadow: 0 0 0 1px rgba(241, 211, 79, 0.24), 0 0 14px rgba(241, 211, 79, 0.28);
   color: #fff4a8;
-}
-
-.ability-btn.ready::before,
-.ability-btn.ready::after {
-  content: "";
-  position: absolute;
-  inset: -35%;
-  pointer-events: none;
-}
-
-.ability-btn.ready::before {
-  background:
-    radial-gradient(circle at 18% 28%, rgba(255, 250, 180, 0.9) 0 2px, transparent 3px),
-    radial-gradient(circle at 72% 38%, rgba(255, 255, 255, 0.8) 0 1.5px, transparent 3px),
-    radial-gradient(circle at 44% 76%, rgba(241, 211, 79, 0.9) 0 2px, transparent 3px);
-  animation: abilitySparkle 1.35s linear infinite;
-  opacity: 0.9;
-}
-
-.ability-btn.ready::after {
-  background: linear-gradient(105deg, transparent 35%, rgba(255, 242, 137, 0.35) 50%, transparent 65%);
-  animation: abilityShimmer 1.55s ease-in-out infinite;
 }
 
 .ability-btn.cooling {
@@ -355,7 +351,6 @@ canvas {
 .ability-cooldown {
   position: absolute;
   inset: 0;
-  z-index: 3;
   display: grid;
   place-items: center;
   background: rgba(8, 10, 9, 0.78);
@@ -363,34 +358,6 @@ canvas {
   font-weight: 900;
   font-size: 16px;
   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
-}
-
-@keyframes abilitySparkle {
-  0% {
-    transform: translate(-6%, 5%) rotate(0deg);
-    opacity: 0.45;
-  }
-  50% {
-    opacity: 1;
-  }
-  100% {
-    transform: translate(8%, -5%) rotate(12deg);
-    opacity: 0.55;
-  }
-}
-
-@keyframes abilityShimmer {
-  0% {
-    transform: translateX(-55%);
-    opacity: 0;
-  }
-  35% {
-    opacity: 1;
-  }
-  100% {
-    transform: translateX(55%);
-    opacity: 0;
-  }
 }
 
 .ability-btn.active {
@@ -403,10 +370,50 @@ canvas {
   gap: 6px;
 }
 
+.action-menu {
+  position: relative;
+  justify-content: flex-end;
+}
+
+.menu-btn {
+  min-width: 92px;
+}
+
+.action-menu__items {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 8;
+  min-width: 176px;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(18, 23, 20, 0.96);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.34);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(6px);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.action-menu__items.open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.action-menu__items button {
+  width: 100%;
+}
+
 .log {
   min-height: 22px;
+  width: 100%;
   color: var(--muted);
   font-size: 14px;
+  text-align: center;
 }
 
 @media (max-width: 560px) {
@@ -455,8 +462,18 @@ canvas {
   }
 
   .actions {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    display: flex;
+  }
+
+  .action-menu__items {
+    right: auto;
+    left: 50%;
+    min-width: min(220px, calc(100vw - 40px));
+    transform: translate(-50%, 6px);
+  }
+
+  .action-menu__items.open {
+    transform: translate(-50%, 0);
   }
 
   .ability-btn {
@@ -511,7 +528,7 @@ canvas {
   }
 
   .hero-dock {
-    bottom: 206px;
+    bottom: 230px;
     gap: 8px;
     padding: 7px 8px;
   }
@@ -528,6 +545,11 @@ canvas {
 
   .hero-avatar small {
     font-size: 10px;
+  }
+
+  .sleep-mark {
+    top: 19px;
+    font-size: 13px;
   }
 
   .squad {
@@ -551,8 +573,7 @@ canvas {
   }
 
   .actions {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    display: flex;
     gap: 6px;
   }
 
@@ -572,7 +593,7 @@ canvas {
   }
 
   .hero-dock {
-    bottom: 194px;
+    bottom: 218px;
   }
 
   .topbar {
