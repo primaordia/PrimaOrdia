@@ -81,6 +81,8 @@ let uiRefreshTimer = 0;
 let actionMenuOpen = false;
 let targetingAbility = null;
 let audioContext = null;
+let masterAudioGain = null;
+const masterAudioVolume = 2;
 
 const heroTemplates = [
   {
@@ -3463,9 +3465,23 @@ function goldShieldAura(hero, duration) {
 function getAudioContext() {
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
   if (!AudioContextClass) return null;
-  if (!audioContext) audioContext = new AudioContextClass();
+  if (!audioContext) {
+    audioContext = new AudioContextClass();
+    masterAudioGain = audioContext.createGain();
+    masterAudioGain.gain.setValueAtTime(masterAudioVolume, audioContext.currentTime);
+    masterAudioGain.connect(audioContext.destination);
+  }
   if (audioContext.state === "suspended") audioContext.resume();
   return audioContext;
+}
+
+function audioOutput(context) {
+  if (!masterAudioGain) {
+    masterAudioGain = context.createGain();
+    masterAudioGain.gain.setValueAtTime(masterAudioVolume, context.currentTime);
+    masterAudioGain.connect(context.destination);
+  }
+  return masterAudioGain;
 }
 
 function playSpaceFartSound() {
@@ -3527,7 +3543,7 @@ function playEwwwSound() {
   vibratoGain.connect(vowel.frequency);
   vowel.connect(filter);
   filter.connect(gain);
-  gain.connect(context.destination);
+  gain.connect(audioOutput(context));
   vowel.start(now);
   vibrato.start(now);
   vowel.stop(now + duration);
@@ -3559,7 +3575,7 @@ function playWhooshSound() {
   noise.buffer = buffer;
   noise.connect(filter);
   filter.connect(gain);
-  gain.connect(context.destination);
+  gain.connect(audioOutput(context));
   noise.start(now);
   noise.stop(now + duration);
 }
@@ -3591,7 +3607,7 @@ function playBellSequence(frequencies, duration, volume) {
     gain.gain.exponentialRampToValueAtTime(volume, start + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
     oscillator.connect(gain);
-    gain.connect(context.destination);
+    gain.connect(audioOutput(context));
     oscillator.start(start);
     oscillator.stop(start + duration);
   });
@@ -3634,7 +3650,7 @@ function playRumbleSound(context, options) {
   noise.connect(noiseGain);
   noiseGain.connect(filter);
   filter.connect(gain);
-  gain.connect(context.destination);
+  gain.connect(audioOutput(context));
   oscillator.start(now);
   wobble.start(now);
   noise.start(now);
