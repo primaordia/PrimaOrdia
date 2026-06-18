@@ -2805,7 +2805,6 @@ function castVoidBarrageAt(hero, point) {
       hits += 1;
       flash(enemy.mesh.position, 0x9c59d1);
     });
-    starTargetCircle(arrowImpact, 1);
     starShotArrow(hero.mesh.position, arrowImpact);
   }
   playArrowBarrageSound();
