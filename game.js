@@ -36,7 +36,11 @@ const abilityCooldownDurations = {
   "Flame Breath": 3,
   "Star Shot": 15,
   "Shadow Step": 5,
-  "Sausage Rain": 5
+  "Sausage Rain": 5,
+  "Inner Light": 6,
+  "Light of Dawn": 1,
+  "Hammer of Light": 3,
+  "Selfless Shield": 5
 };
 const biomeThemes = [
   { name: "Forest", sky: 0x192018, fog: 0x192018, ground: 0x3a4634, patch: [0x425338, 0x2f3f35, 0x4a5137], water: 0x357b8f, mountain: 0x5f665f, tree: [0x26482f, 0x315d38, 0x516b39] },
@@ -124,6 +128,21 @@ const heroTemplates = [
     portrait: "assets/heroes/poliana.png",
     faceTexture: "assets/heroes/poliana-face.png",
     abilities: ["Star Shot", "Shadow Step", "Sausage Rain"]
+  },
+  {
+    id: "frank",
+    name: "Frank",
+    color: 0xf4f0dc,
+    accent: 0xf3cf55,
+    hp: 165,
+    atk: 12,
+    def: 3,
+    range: 1,
+    speed: 5.1,
+    role: "Holy Paladin",
+    archetype: "paladin",
+    portrait: "assets/heroes/frank.svg",
+    abilities: ["Inner Light", "Light of Dawn", "Hammer of Light", "Selfless Shield"]
   }
 ];
 
@@ -581,6 +600,10 @@ function buildHeroModel(group, data, bodyMat, accentMat, darkMat) {
     buildFeenixModel(group, data);
     return;
   }
+  if (data.id === "frank") {
+    buildPaladinModel(group, data);
+    return;
+  }
 
   const skinMat = new THREE.MeshStandardMaterial({ color: 0xf1b894, roughness: 0.54, metalness: 0.02 });
   const goldMat = new THREE.MeshStandardMaterial({ color: 0xdcb65c, roughness: 0.42, metalness: 0.2 });
@@ -633,6 +656,72 @@ function buildHeroModel(group, data, bodyMat, accentMat, darkMat) {
   }
 }
 
+function buildPaladinModel(group, data) {
+  const skinMat = new THREE.MeshStandardMaterial({ color: 0xf0b990, roughness: 0.54, metalness: 0.02 });
+  const armorMat = new THREE.MeshStandardMaterial({ color: 0xe8e5d6, roughness: 0.32, metalness: 0.44 });
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xf0c84e, roughness: 0.36, metalness: 0.32 });
+  const blueMat = new THREE.MeshStandardMaterial({ color: 0x4f77bd, roughness: 0.48, metalness: 0.12 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x2e3440, roughness: 0.58, metalness: 0.16 });
+
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.5, 1, 6, 12), armorMat);
+  body.position.y = 1.08;
+  body.castShadow = true;
+  group.add(body);
+
+  const tabard = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.86, 0.08), blueMat);
+  tabard.position.set(0, 1.06, 0.45);
+  tabard.castShadow = true;
+  group.add(tabard);
+
+  const crossVertical = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.42, 0.09), goldMat);
+  crossVertical.position.set(0, 1.14, 0.51);
+  group.add(crossVertical);
+  const crossHorizontal = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.08, 0.09), goldMat);
+  crossHorizontal.position.set(0, 1.2, 0.515);
+  group.add(crossHorizontal);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.5, 22, 16), skinMat);
+  head.position.y = 2.12;
+  head.castShadow = true;
+  group.add(head);
+  addFace(group, data);
+
+  const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.54, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), armorMat);
+  helmet.position.y = 2.19;
+  helmet.castShadow = true;
+  group.add(helmet);
+
+  const crest = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.42, 0.1), goldMat);
+  crest.position.set(0, 2.58, 0.02);
+  crest.castShadow = true;
+  group.add(crest);
+
+  addChibiLimbs(group, skinMat, armorMat);
+
+  const shield = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.4, 0.12, 5), goldMat);
+  shield.position.set(-0.62, 1.22, 0.22);
+  shield.rotation.set(Math.PI / 2, 0, 0.26);
+  shield.castShadow = true;
+  group.add(shield);
+
+  const hammerHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.055, 0.94, 8), darkMat);
+  hammerHandle.position.set(0.66, 1.18, 0.08);
+  hammerHandle.rotation.z = -0.48;
+  hammerHandle.castShadow = true;
+  group.add(hammerHandle);
+
+  const hammerHead = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.24, 0.22), goldMat);
+  hammerHead.position.set(0.87, 1.55, 0.08);
+  hammerHead.rotation.z = -0.48;
+  hammerHead.castShadow = true;
+  group.add(hammerHead);
+
+  const halo = new THREE.Mesh(new THREE.TorusGeometry(0.58, 0.035, 8, 32), goldMat);
+  halo.position.y = 2.68;
+  halo.rotation.x = Math.PI / 2;
+  group.add(halo);
+}
+
 function addChibiLimbs(group, skinMat, outfitMat) {
   const armGeo = new THREE.CapsuleGeometry(0.09, 0.62, 5, 8);
   const legGeo = new THREE.CapsuleGeometry(0.11, 0.55, 5, 8);
@@ -663,7 +752,7 @@ function addFace(group, data) {
     return;
   }
 
-  const eyeMat = new THREE.MeshBasicMaterial({ color: data.id === "leela" ? 0x73e05d : 0x6a3f7a });
+  const eyeMat = new THREE.MeshBasicMaterial({ color: data.id === "leela" ? 0x73e05d : data.id === "frank" ? 0x4f77bd : 0x6a3f7a });
   const pupilMat = new THREE.MeshBasicMaterial({ color: 0x10130f });
   const shineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
   const blushMat = new THREE.MeshBasicMaterial({ color: 0xf29aa1, transparent: true, opacity: 0.72 });
@@ -1128,12 +1217,12 @@ function resetGame() {
   state = "playing";
 
   heroTemplates.forEach((template, index) => {
-    const x = (index - 1) * 3.5;
+    const x = (index - (heroTemplates.length - 1) / 2) * 3.1;
     units.push(createUnit({ ...template, side: "hero", x, z: 9.4, level: 1 }));
   });
 
   spawnWave();
-  log("Command Leela, Feenix, and Poliana in real time.");
+  log("Command Leela, Feenix, Poliana, and Frank in real time.");
   syncUi();
 }
 
@@ -2214,6 +2303,26 @@ function chooseAbility(heroId, ability) {
     syncUi();
     return;
   }
+  if (ability === "Inner Light") {
+    if (castInnerLight(hero)) startAbilityCooldown(hero, ability);
+    syncUi();
+    return;
+  }
+  if (ability === "Light of Dawn") {
+    if (castLightOfDawn(hero)) startAbilityCooldown(hero, ability);
+    syncUi();
+    return;
+  }
+  if (ability === "Hammer of Light") {
+    if (castHammerOfLight(hero)) startAbilityCooldown(hero, ability);
+    syncUi();
+    return;
+  }
+  if (ability === "Selfless Shield") {
+    if (castSelflessShield(hero)) startAbilityCooldown(hero, ability);
+    syncUi();
+    return;
+  }
   startAbilityCooldown(hero, ability);
   log(`${hero.name} readied ${ability}.`);
   syncUi();
@@ -2429,6 +2538,74 @@ function castSausageRain(hero) {
   return affected.length > 0;
 }
 
+function castInnerLight(hero) {
+  hero.hp = Math.min(hero.maxHp, hero.hp + 20);
+  const affected = enemies().filter((enemy) => enemy.mesh.position.distanceTo(hero.mesh.position) <= 2);
+  affected.forEach((enemy) => {
+    enemy.hp -= 20;
+    flash(enemy.mesh.position, 0xfff0a6);
+  });
+  holyLightBurst(hero.mesh.position, 2, 6);
+  healingBubbles(hero.mesh.position);
+  log(`${hero.name} used Inner Light.`);
+  return true;
+}
+
+function castLightOfDawn(hero) {
+  let affected = 0;
+  heroes().forEach((ally) => {
+    if (ally.mesh.position.distanceTo(hero.mesh.position) > 3) return;
+    ally.hp = Math.min(ally.maxHp, ally.hp + 60);
+    holyLightBurst(ally.mesh.position, 0.9, 0.9);
+    healingBubbles(ally.mesh.position);
+    affected += 1;
+  });
+  holyLightBurst(hero.mesh.position, 3, 1.1);
+  log(`${hero.name} cast Light of Dawn.`);
+  return affected > 0;
+}
+
+function castHammerOfLight(hero) {
+  const target = targetEnemy(hero) ?? nearest(hero, enemies());
+  if (target) face(hero, target.mesh.position);
+  const direction = new THREE.Vector3(Math.sin(hero.mesh.rotation.y), 0, Math.cos(hero.mesh.rotation.y)).normalize();
+  const origin = hero.mesh.position.clone();
+  let hits = 0;
+
+  enemies().forEach((enemy) => {
+    const toEnemy = enemy.mesh.position.clone().sub(origin);
+    const distance = toEnemy.length();
+    if (distance > 2) return;
+    toEnemy.y = 0;
+    toEnemy.normalize();
+    if (direction.dot(toEnemy) < Math.cos(Math.PI / 3)) return;
+    enemy.hp -= 55;
+    hits += 1;
+    flash(enemy.mesh.position, 0xffe875);
+  });
+  hammerLightSmash(hero, direction);
+  log(hits ? `${hero.name} used Hammer of Light.` : "Hammer of Light missed.");
+  return hits > 0;
+}
+
+function castSelflessShield(hero) {
+  const nearby = heroes()
+    .filter((ally) => ally.id !== hero.id && ally.mesh.position.distanceTo(hero.mesh.position) <= 3)
+    .sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
+  if (!nearby) {
+    log("No nearby hero for Selfless Shield.");
+    return false;
+  }
+
+  nearby.hp = Math.min(nearby.maxHp, nearby.hp + 70);
+  nearby.shieldDefBonus = Math.max(nearby.shieldDefBonus ?? 0, 4);
+  nearby.shieldTimer = 5;
+  holyLightBurst(nearby.mesh.position, 1.2, 1.4);
+  healingBubbles(nearby.mesh.position);
+  log(`${hero.name} shielded ${nearby.name}.`);
+  return true;
+}
+
 function targetEnemy(hero) {
   return enemies().find((enemy) => enemy.id === hero.target) ?? null;
 }
@@ -2562,7 +2739,7 @@ function rallyHeroes() {
   const destination = new THREE.Vector3(0, 0, 5.2);
   heroes().forEach((hero, index) => {
     hero.target = null;
-    hero.targetPoint.set(destination.x + (index - 1) * 2.6, 0, destination.z);
+    hero.targetPoint.set(destination.x + (index - (heroes().length - 1) / 2) * 2.35, 0, destination.z);
   });
   flash(destination, 0xe0be57);
   log("Squad rallying.");
@@ -2799,6 +2976,51 @@ function sunlightRing(position) {
   markers.push(ring);
 }
 
+function holyLightBurst(position, radius = 1.5, life = 0.9) {
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(radius * 0.35, radius, 48),
+    new THREE.MeshBasicMaterial({ color: 0xfff0a6, transparent: true, opacity: 0.9, side: THREE.DoubleSide })
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.set(position.x, 0.16, position.z);
+  ring.userData.life = life;
+  ring.userData.kind = "holy-light";
+  scene.add(ring);
+  markers.push(ring);
+
+  for (let i = 0; i < 18; i += 1) {
+    const spark = new THREE.Mesh(
+      new THREE.SphereGeometry(0.045 + Math.random() * 0.04, 8, 6),
+      new THREE.MeshBasicMaterial({ color: i % 2 ? 0xffffff : 0xffe875, transparent: true, opacity: 0.92 })
+    );
+    const angle = Math.random() * Math.PI * 2;
+    const distance = Math.random() * radius * 0.65;
+    spark.position.set(position.x + Math.cos(angle) * distance, 0.8 + Math.random() * 1.3, position.z + Math.sin(angle) * distance);
+    spark.userData.life = Math.min(1.1, life);
+    spark.userData.velocity = new THREE.Vector3(Math.cos(angle) * 0.015, 0.025 + Math.random() * 0.025, Math.sin(angle) * 0.015);
+    spark.userData.kind = "heal-bubble";
+    scene.add(spark);
+    markers.push(spark);
+  }
+}
+
+function hammerLightSmash(hero, direction) {
+  const origin = hero.mesh.position.clone().add(direction.clone().multiplyScalar(1.25));
+  const cone = new THREE.Mesh(
+    new THREE.ConeGeometry(1.15, 2.25, 32, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xffe875, transparent: true, opacity: 0.36, side: THREE.DoubleSide })
+  );
+  cone.rotation.x = Math.PI / 2;
+  cone.rotation.z = -hero.mesh.rotation.y;
+  cone.position.set(origin.x, 0.18, origin.z);
+  cone.scale.set(0.78, 1, 1);
+  cone.userData.life = 0.55;
+  cone.userData.kind = "holy-light";
+  scene.add(cone);
+  markers.push(cone);
+  flash(origin, 0xffe875);
+}
+
 function syncSelectionRings() {
   units.forEach((unit) => {
     unit.ring.visible = unit.id === selectedId || unit.target === selectedId;
@@ -2822,6 +3044,8 @@ function syncSelectionRings() {
       marker.rotation.z += marker.userData.spin?.z ?? 0.08;
     } else if (marker.userData.kind === "sun-ring") {
       marker.scale.multiplyScalar(1.11);
+    } else if (marker.userData.kind === "holy-light") {
+      marker.scale.multiplyScalar(1.018);
     } else if (marker.userData.kind === "star-arrow") {
       marker.userData.age += 0.016;
       const progress = THREE.MathUtils.clamp(marker.userData.age / marker.userData.duration, 0, 1);

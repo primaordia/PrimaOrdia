@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-label="Frank Holy Paladin">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="35%" r="72%">
+      <stop offset="0%" stop-color="#fff4a8"/>
+      <stop offset="55%" stop-color="#5579bd"/>
+      <stop offset="100%" stop-color="#1c2531"/>
+    </radialGradient>
+    <linearGradient id="armor" x1="25%" x2="75%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="55%" stop-color="#d8d8cf"/>
+      <stop offset="100%" stop-color="#8b918d"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="160" rx="22" fill="url(#bg)"/>
+  <circle cx="80" cy="82" r="52" fill="#fff1b8" opacity=".22"/>
+  <path d="M80 18 94 52H66Z" fill="#f2c84b"/>
+  <path d="M46 48c8-21 60-21 68 0l-8 33H54Z" fill="url(#armor)"/>
+  <path d="M54 52c10-19 42-19 52 0l-8 26H62Z" fill="#f4ead2"/>
+  <circle cx="80" cy="76" r="28" fill="#efb58e"/>
+  <path d="M54 69c8-18 44-22 58-2-10-36-48-35-58 2Z" fill="#d8d8cf"/>
+  <path d="M47 93h66l18 47H29Z" fill="url(#armor)"/>
+  <path d="M66 92h28v48H66Z" fill="#5579bd"/>
+  <path d="M78 99h8v32h-8Z" fill="#f2c84b"/>
+  <path d="M68 110h28v8H68Z" fill="#f2c84b"/>
+  <circle cx="68" cy="76" r="5" fill="#17202a"/>
+  <circle cx="92" cy="76" r="5" fill="#17202a"/>
+  <path d="M70 91c8 8 14 8 22 0" fill="none" stroke="#64251f" stroke-width="4" stroke-linecap="round"/>
+  <path d="M34 94 14 106l20 30 20-14Z" fill="#f2c84b"/>
+  <path d="M126 50h10v51h-10Z" fill="#7c5629"/>
+  <path d="M114 46h34v14h-34Z" fill="#f2c84b"/>
+  <path d="M124 37h14v32h-14Z" fill="#f2c84b"/>
+</svg>
