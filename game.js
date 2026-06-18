@@ -70,6 +70,7 @@ let hoverPopup = null;
 let hoveredUnitId = null;
 let hoveredMedkitId = null;
 let highlightedMedkit = null;
+let restartCountdown = 0;
 let autoRestartTimeout = null;
 let uiRefreshTimer = 0;
 let actionMenuOpen = false;
@@ -1117,6 +1118,7 @@ function resetGame() {
   spawnTimer = 3;
   missionTimer = missionDuration;
   missionCountdown = 0;
+  restartCountdown = 0;
   missionPending = false;
   medkitSpawnTimer = 0;
   targetingAbility = null;
@@ -1499,8 +1501,16 @@ function updateMedkits(dt) {
 function animate() {
   const dt = Math.min(0.05, clock.getDelta());
   if (state === "playing") update(dt);
+  if (state === "lost") updateRestartCountdown(dt);
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
+}
+
+function updateRestartCountdown(dt) {
+  restartCountdown = Math.max(0, restartCountdown - dt);
+  countdownOverlayEl.textContent = Math.ceil(restartCountdown);
+  countdownOverlayEl.classList.toggle("show", restartCountdown > 0);
+  if (restartCountdown <= 0) resetGame();
 }
 
 function update(dt) {
@@ -1543,8 +1553,10 @@ function update(dt) {
 
   if (heroes(true).length > 0 && heroes(true).every((hero) => hero.asleep || hero.hp <= 0)) {
     state = "lost";
-    log("All heroes are asleep. Restarting...");
-    autoRestartTimeout = window.setTimeout(resetGame, 2200);
+    restartCountdown = 10;
+    countdownOverlayEl.textContent = restartCountdown;
+    countdownOverlayEl.classList.add("show");
+    log("All heroes are asleep. Restarting in 10 seconds.");
   }
 }
 
@@ -2860,8 +2872,10 @@ function setMarkerOpacity(marker, opacity) {
 function syncUi() {
   goldEl.textContent = `Gold ${gold}`;
   waveEl.textContent = missionPending ? `Mission ${wave + 1} in ${Math.ceil(missionCountdown)}s` : `Mission ${wave} ${formatTime(missionTimer)}`;
-  countdownOverlayEl.textContent = missionPending ? Math.ceil(missionCountdown) : "";
-  countdownOverlayEl.classList.toggle("show", missionPending);
+  const countdown = state === "lost" ? restartCountdown : missionCountdown;
+  const showCountdown = state === "lost" || missionPending;
+  countdownOverlayEl.textContent = showCountdown ? Math.ceil(countdown) : "";
+  countdownOverlayEl.classList.toggle("show", showCountdown);
 
   const hero = selectedHero();
   selectedNameEl.textContent = hero ? `${hero.name} ${hero.role}` : "Choose a hero";
