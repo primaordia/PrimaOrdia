@@ -2878,7 +2878,7 @@ function syncUi() {
   countdownOverlayEl.classList.toggle("show", showCountdown);
 
   const hero = selectedHero();
-  selectedNameEl.textContent = hero ? `${hero.name} ${hero.role}` : "Choose a hero";
+  selectedNameEl.textContent = hero ? heroDisplayName(hero) : "Choose a hero";
   selectedStatsEl.textContent = hero
     ? `HP ${Math.max(0, Math.ceil(hero.hp))}/${hero.maxHp} | ATK ${hero.atk} | RNG ${hero.range} | DEF ${hero.def} | LVL ${Math.floor(hero.level)}`
     : "Tap a hero, then tap the field to move.";
@@ -2936,8 +2936,8 @@ function syncUi() {
     card.innerHTML = `
       ${unit.portrait ? `<img class="hero-card__portrait" src="${unit.portrait}" alt="${unit.name}">` : ""}
       <span class="hero-card__details">
-        <strong>${unit.name}</strong>
-        <small>${sleeping ? "Sleeping | " : ""}${unit.role} | LVL ${Math.floor(unit.level)} | ATK ${unit.atk} | RNG ${unit.range} | DEF ${unit.def}</small>
+        <strong>${heroDisplayName(unit)}</strong>
+        <small>${sleeping ? "Sleeping | " : ""}LVL ${Math.floor(unit.level)} | ATK ${unit.atk} | RNG ${unit.range} | DEF ${unit.def}</small>
         <span class="bar"><span style="width:${Math.max(0, unit.hp / unit.maxHp) * 100}%"></span></span>
       </span>
     `;
@@ -2947,6 +2947,10 @@ function syncUi() {
     });
     squadEl.appendChild(card);
   });
+}
+
+function heroDisplayName(hero) {
+  return `${hero.name} - ${hero.role}`;
 }
 
 function formatTime(seconds) {
