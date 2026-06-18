@@ -2808,6 +2808,7 @@ function castVoidBarrageAt(hero, point) {
     starTargetCircle(arrowImpact, 1);
     starShotArrow(hero.mesh.position, arrowImpact);
   }
+  playArrowBarrageSound();
   log(hits ? `${hero.name} fired Void Barrage.` : `${hero.name} fired Void Barrage at the target.`);
   return true;
 }
@@ -3626,6 +3627,41 @@ function playYumYumSound() {
     oscillator.start(start);
     oscillator.stop(start + duration);
   });
+}
+
+function playArrowBarrageSound() {
+  const context = getAudioContext();
+  if (!context) return;
+  const now = context.currentTime;
+
+  for (let i = 0; i < 6; i += 1) {
+    const start = now + i * 0.055;
+    const duration = 0.24;
+    const gain = context.createGain();
+    const filter = context.createBiquadFilter();
+    const noise = context.createBufferSource();
+    const buffer = context.createBuffer(1, Math.ceil(context.sampleRate * duration), context.sampleRate);
+    const samples = buffer.getChannelData(0);
+
+    for (let sampleIndex = 0; sampleIndex < samples.length; sampleIndex += 1) {
+      const progress = sampleIndex / samples.length;
+      samples[sampleIndex] = (Math.random() * 2 - 1) * (1 - progress) * Math.sin(progress * Math.PI);
+    }
+
+    filter.type = "highpass";
+    filter.frequency.setValueAtTime(1100 + i * 90, start);
+    filter.Q.setValueAtTime(2.5, start);
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(0.2, start + 0.018);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+    noise.buffer = buffer;
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(audioOutput(context));
+    noise.start(start);
+    noise.stop(start + duration);
+  }
 }
 
 function playBellSequence(frequencies, duration, volume) {
