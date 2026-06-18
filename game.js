@@ -2461,26 +2461,38 @@ function starShotArrow(from, to) {
 }
 
 function strawberryShield(hero) {
-  const direction = new THREE.Vector3(Math.sin(hero.mesh.rotation.y), 0, Math.cos(hero.mesh.rotation.y)).normalize();
-  const right = new THREE.Vector3(direction.z, 0, -direction.x);
-  const center = hero.mesh.position.clone().add(direction.clone().multiplyScalar(1.45));
   const berryMat = new THREE.MeshBasicMaterial({ color: 0xe8483f, transparent: true, opacity: 0.9 });
-  const seedMat = new THREE.MeshBasicMaterial({ color: 0xffd45a });
+  const seedMat = new THREE.MeshBasicMaterial({ color: 0xffd45a, transparent: true, opacity: 0.95 });
+  const leafMat = new THREE.MeshBasicMaterial({ color: 0x62b34d, transparent: true, opacity: 0.95, side: THREE.DoubleSide });
 
   for (let i = 0; i < 10; i += 1) {
     const berry = new THREE.Group();
     const fruit = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), berryMat.clone());
     fruit.scale.set(1, 1.18, 0.9);
     berry.add(fruit);
-    const seed = new THREE.Mesh(new THREE.SphereGeometry(0.025, 6, 4), seedMat);
-    seed.position.set(0.04, 0.04, 0.1);
-    berry.add(seed);
-    const row = Math.floor(i / 5);
-    const col = i % 5;
-    berry.position.copy(center)
-      .add(right.clone().multiplyScalar((col - 2) * 0.34))
-      .add(new THREE.Vector3(0, 1.2 + row * 0.32, 0));
+    for (let seedIndex = 0; seedIndex < 3; seedIndex += 1) {
+      const seed = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 4), seedMat.clone());
+      seed.position.set((seedIndex - 1) * 0.045, 0.02 + seedIndex * 0.035, 0.105);
+      berry.add(seed);
+    }
+    const leaf = new THREE.Mesh(new THREE.CircleGeometry(0.075, 5), leafMat.clone());
+    leaf.position.y = 0.15;
+    leaf.rotation.x = Math.PI / 2;
+    berry.add(leaf);
+
+    const angle = (i / 10) * Math.PI * 2;
+    berry.position.set(
+      hero.mesh.position.x + Math.cos(angle) * 1.38,
+      1.85 + Math.sin(angle * 2) * 0.18,
+      hero.mesh.position.z + Math.sin(angle) * 1.38
+    );
     berry.userData.life = 5;
+    berry.userData.age = 0;
+    berry.userData.ownerId = hero.id;
+    berry.userData.angle = angle;
+    berry.userData.radius = 1.38;
+    berry.userData.height = 1.85;
+    berry.userData.spinSpeed = 2.8 + i * 0.04;
     berry.userData.kind = "shield-berry";
     scene.add(berry);
     markers.push(berry);
@@ -2811,8 +2823,19 @@ function syncSelectionRings() {
       marker.position.add(marker.userData.velocity);
       marker.scale.multiplyScalar(1.004);
     } else if (marker.userData.kind === "shield-berry") {
-      marker.rotation.y += 0.05;
-      marker.position.y += Math.sin(marker.userData.life * 8) * 0.002;
+      marker.userData.age += 0.016;
+      const owner = units.find((unit) => unit.id === marker.userData.ownerId);
+      if (owner) {
+        const angle = marker.userData.angle + marker.userData.age * marker.userData.spinSpeed;
+        marker.position.set(
+          owner.mesh.position.x + Math.cos(angle) * marker.userData.radius,
+          marker.userData.height + Math.sin(marker.userData.age * 7 + marker.userData.angle) * 0.22,
+          owner.mesh.position.z + Math.sin(angle) * marker.userData.radius
+        );
+      }
+      marker.rotation.x += 0.035;
+      marker.rotation.y += 0.12;
+      marker.rotation.z += 0.025;
     } else {
       marker.scale.multiplyScalar(1.035);
     }
