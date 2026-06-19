@@ -75,6 +75,35 @@ body.intro-active .game-shell {
   visibility: hidden;
 }
 
+.pre-intro-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: #000;
+  opacity: 1;
+  transition: opacity 180ms ease, visibility 180ms ease;
+}
+
+.pre-intro-screen.hidden {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.pre-intro-btn {
+  min-width: min(320px, calc(100vw - 48px));
+  min-height: 64px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  background: #000;
+  color: #fff;
+  font-size: 24px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
 .intro-screen {
   position: fixed;
   inset: 0;
@@ -575,8 +604,8 @@ canvas {
   .intro-screen {
     background:
       radial-gradient(circle at 50% 12%, rgba(107, 64, 217, 0.34), transparent 34%),
-      linear-gradient(180deg, rgba(4, 2, 18, 0.02), rgba(4, 2, 18, 0.18) 68%, rgba(4, 2, 18, 0.72)),
-      url("assets/intro.png") center / contain no-repeat,
+      linear-gradient(180deg, rgba(4, 2, 18, 0.02), rgba(4, 2, 18, 0.1) 72%, rgba(4, 2, 18, 0.66)),
+      url("assets/intro.png") center / auto 100svh no-repeat,
       linear-gradient(180deg, #060214, #12072a 48%, #05020d);
     padding: max(12px, env(safe-area-inset-top)) 12px max(22px, env(safe-area-inset-bottom));
   }

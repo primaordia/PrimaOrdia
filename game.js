@@ -9,6 +9,8 @@ const selectedNameEl = document.querySelector("#selectedName");
 const selectedStatsEl = document.querySelector("#selectedStats");
 const hudEl = document.querySelector(".hud");
 const logEl = document.querySelector("#log");
+const preIntroScreenEl = document.querySelector("#preIntroScreen");
+const preIntroBtn = document.querySelector("#preIntroBtn");
 const introScreenEl = document.querySelector("#introScreen");
 const startGameBtn = document.querySelector("#startGameBtn");
 const goldEl = document.querySelector("#gold");
@@ -117,6 +119,7 @@ const audioAssets = {
   enemyAttack: new Audio("assets/audio/enemy-attack.mp3"),
   backgroundMusic: new Audio("assets/audio/background-music-1.mp3")
 };
+let backgroundMusicPrepared = false;
 
 const heroTemplates = [
   {
@@ -193,7 +196,12 @@ const enemyTemplates = [
 init();
 syncUi();
 animate();
+prepareBackgroundMusic();
+startBackgroundMusic();
 requestAnimationFrame(startBackgroundMusic);
+window.addEventListener("load", startBackgroundMusic, { once: true });
+window.addEventListener("pageshow", startBackgroundMusic);
+setTimeout(startBackgroundMusic, 350);
 
 function init() {
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
@@ -240,6 +248,9 @@ function init() {
   document.addEventListener("click", startBackgroundMusic);
   introScreenEl.addEventListener("pointerdown", startBackgroundMusic);
   introScreenEl.addEventListener("touchstart", startBackgroundMusic, { passive: true });
+  preIntroBtn.addEventListener("pointerdown", startBackgroundMusic);
+  preIntroBtn.addEventListener("touchstart", startBackgroundMusic, { passive: true });
+  preIntroBtn.addEventListener("click", showIntroFromPreIntro);
   introBtn.addEventListener("click", showIntro);
   startGameBtn.addEventListener("pointerdown", startBackgroundMusic);
   startGameBtn.addEventListener("touchstart", startBackgroundMusic, { passive: true });
@@ -307,6 +318,12 @@ function setActionMenuOpen(open) {
 function toggleActionMenu(event) {
   event.stopPropagation();
   setActionMenuOpen(!actionMenuOpen);
+}
+
+function showIntroFromPreIntro() {
+  preIntroScreenEl.classList.add("hidden");
+  document.body.classList.remove("pre-intro-active");
+  showIntro();
 }
 
 function showIntro() {
@@ -3908,8 +3925,21 @@ function audioOutput(context) {
   return masterAudioGain;
 }
 
+function prepareBackgroundMusic() {
+  if (backgroundMusicPrepared) return;
+  backgroundMusicPrepared = true;
+  const music = audioAssets.backgroundMusic;
+  music.loop = true;
+  music.autoplay = true;
+  music.preload = "auto";
+  music.setAttribute("playsinline", "");
+  music.volume = musicEnabled ? musicVolume : 0;
+  music.load();
+}
+
 function startBackgroundMusic() {
   if (!musicEnabled) return;
+  prepareBackgroundMusic();
   const music = audioAssets.backgroundMusic;
   music.loop = true;
   music.volume = musicEnabled ? musicVolume : 0;
