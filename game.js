@@ -4171,7 +4171,7 @@ function syncUi() {
   selectedStatsEl.textContent = "";
   soundBtn.textContent = soundEnabled ? "Effects 🔊" : "Effects 🔇";
   soundBtn.setAttribute("aria-pressed", String(soundEnabled));
-  musicBtn.textContent = musicEnabled ? "Music 🔊" : "Music 🔇";
+  musicBtn.textContent = musicEnabled ? "Music ♪" : "Music ♪ Off";
   musicBtn.setAttribute("aria-pressed", String(musicEnabled));
   abilitiesPanelEl.innerHTML = "";
   if (hero) {
