@@ -2541,7 +2541,7 @@ function selflessShieldTarget(defender) {
 function trackFrankEnemyHit(frank) {
   frank.frankEnemyHitCount = (frank.frankEnemyHitCount ?? 0) + 1;
   if (frank.frankEnemyHitCount % 10 !== 0) return;
-  playAudioAsset(audioAssets.frankDoinkOww);
+  playAudioAsset(audioAssets.frankDoinkOww, null, 1.6);
 }
 
 function effectiveAtk(unit) {
@@ -4164,7 +4164,7 @@ function startBackgroundMusic() {
   if (playPromise?.catch) playPromise.catch(() => {});
 }
 
-function playAudioAsset(asset, fallback) {
+function playAudioAsset(asset, fallback, volumeMultiplier = 1) {
   if (!soundEnabled) return;
   if (!asset) {
     fallback?.();
@@ -4173,7 +4173,7 @@ function playAudioAsset(asset, fallback) {
   try {
     asset.pause();
     asset.currentTime = 0;
-    asset.volume = soundEffectsVolume;
+    asset.volume = Math.min(1, soundEffectsVolume * volumeMultiplier);
     const playPromise = asset.play();
     if (playPromise?.catch) playPromise.catch(() => fallback?.());
   } catch {
