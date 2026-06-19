@@ -13,6 +13,7 @@ const waveEl = document.querySelector("#wave");
 const menuBtn = document.querySelector("#menuBtn");
 const actionMenuEl = document.querySelector("#actionMenu");
 const soundBtn = document.querySelector("#soundBtn");
+const musicBtn = document.querySelector("#musicBtn");
 const rallyBtn = document.querySelector("#rallyBtn");
 const restartBtn = document.querySelector("#restartBtn");
 
@@ -97,8 +98,10 @@ let targetingAbility = null;
 let audioContext = null;
 let masterAudioGain = null;
 let soundEnabled = true;
+let musicEnabled = true;
 const masterAudioVolume = 5;
-const backgroundMusicVolume = 0.18;
+const soundEffectsVolume = 1;
+const musicVolume = 0.32;
 const audioAssets = {
   spaceFart: new Audio("assets/audio/space-fart.mp3"),
   selflessBelch: new Audio("assets/audio/selfless-belch.mp3"),
@@ -228,6 +231,7 @@ function init() {
   document.addEventListener("pointerdown", closeActionMenuFromPointer);
   document.addEventListener("pointerdown", startBackgroundMusic);
   soundBtn.addEventListener("click", toggleSound);
+  musicBtn.addEventListener("click", toggleMusic);
   rallyBtn.addEventListener("click", rallyHeroes);
   restartBtn.addEventListener("click", () => {
     setActionMenuOpen(false);
@@ -294,16 +298,36 @@ function toggleActionMenu(event) {
 function toggleSound() {
   soundEnabled = !soundEnabled;
   if (!soundEnabled) {
-    Object.values(audioAssets).forEach((asset) => {
+    Object.entries(audioAssets).forEach(([name, asset]) => {
+      if (name === "backgroundMusic") return;
       asset.pause();
       asset.currentTime = 0;
     });
   }
-  if (masterAudioGain && audioContext) {
-    masterAudioGain.gain.setValueAtTime(soundEnabled ? masterAudioVolume : 0, audioContext.currentTime);
-  }
-  if (soundEnabled) startBackgroundMusic();
+  applyAudioVolumes();
   syncUi();
+}
+
+function toggleMusic() {
+  musicEnabled = !musicEnabled;
+  if (!musicEnabled) {
+    audioAssets.backgroundMusic.pause();
+    audioAssets.backgroundMusic.currentTime = 0;
+  }
+  applyAudioVolumes();
+  if (musicEnabled) startBackgroundMusic();
+  syncUi();
+}
+
+function applyAudioVolumes() {
+  if (masterAudioGain && audioContext) {
+    masterAudioGain.gain.setValueAtTime(soundEnabled ? masterAudioVolume * soundEffectsVolume : 0, audioContext.currentTime);
+  }
+  Object.entries(audioAssets).forEach(([name, asset]) => {
+    asset.volume = name === "backgroundMusic"
+      ? (musicEnabled ? musicVolume : 0)
+      : (soundEnabled ? soundEffectsVolume : 0);
+  });
 }
 
 function closeActionMenuFromPointer(event) {
@@ -3717,7 +3741,7 @@ function getAudioContext() {
   if (!audioContext) {
     audioContext = new AudioContextClass();
     masterAudioGain = audioContext.createGain();
-    masterAudioGain.gain.setValueAtTime(soundEnabled ? masterAudioVolume : 0, audioContext.currentTime);
+    masterAudioGain.gain.setValueAtTime(soundEnabled ? masterAudioVolume * soundEffectsVolume : 0, audioContext.currentTime);
     masterAudioGain.connect(audioContext.destination);
   }
   if (audioContext.state === "suspended") audioContext.resume();
@@ -3727,17 +3751,17 @@ function getAudioContext() {
 function audioOutput(context) {
   if (!masterAudioGain) {
     masterAudioGain = context.createGain();
-    masterAudioGain.gain.setValueAtTime(soundEnabled ? masterAudioVolume : 0, context.currentTime);
+    masterAudioGain.gain.setValueAtTime(soundEnabled ? masterAudioVolume * soundEffectsVolume : 0, context.currentTime);
     masterAudioGain.connect(context.destination);
   }
   return masterAudioGain;
 }
 
 function startBackgroundMusic() {
-  if (!soundEnabled) return;
+  if (!musicEnabled) return;
   const music = audioAssets.backgroundMusic;
   music.loop = true;
-  music.volume = backgroundMusicVolume;
+  music.volume = musicEnabled ? musicVolume : 0;
   if (!music.paused) return;
   const playPromise = music.play();
   if (playPromise?.catch) playPromise.catch(() => {});
@@ -3752,7 +3776,7 @@ function playAudioAsset(asset, fallback) {
   try {
     asset.pause();
     asset.currentTime = 0;
-    asset.volume = 1;
+    asset.volume = soundEffectsVolume;
     const playPromise = asset.play();
     if (playPromise?.catch) playPromise.catch(() => fallback?.());
   } catch {
@@ -4145,8 +4169,10 @@ function syncUi() {
   const hero = selectedHero();
   selectedNameEl.textContent = hero ? `${heroDisplayName(hero)} | ${heroStatsHtml(hero)}` : "Choose a hero";
   selectedStatsEl.textContent = "";
-  soundBtn.textContent = soundEnabled ? "Sound 🔊" : "Sound 🔇";
+  soundBtn.textContent = soundEnabled ? "Effects 🔊" : "Effects 🔇";
   soundBtn.setAttribute("aria-pressed", String(soundEnabled));
+  musicBtn.textContent = musicEnabled ? "Music 🔊" : "Music 🔇";
+  musicBtn.setAttribute("aria-pressed", String(musicEnabled));
   abilitiesPanelEl.innerHTML = "";
   if (hero) {
     hero.abilities.forEach((ability) => {
