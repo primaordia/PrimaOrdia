@@ -372,6 +372,9 @@ function randomizeScenery() {
   addRandomMountains();
   addRandomWater();
   addRandomSettlements();
+  addSpaceSurfaceDetails();
+  addCrystalFields();
+  addOrbitalDebris();
 }
 
 function addTerrainPatches() {
@@ -643,6 +646,117 @@ function addRandomSettlements() {
     well.position.set(center.x, 0.16, center.z);
     well.castShadow = true;
     addScenery(well);
+  }
+}
+
+function addSpaceSurfaceDetails() {
+  const craterMat = new THREE.MeshBasicMaterial({ color: 0x090814, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
+  const rimMat = new THREE.MeshStandardMaterial({ color: 0x7a7291, roughness: 0.88, metalness: 0.08 });
+  const glowMats = [
+    new THREE.MeshBasicMaterial({ color: 0x65e7ff, transparent: true, opacity: 0.28, side: THREE.DoubleSide }),
+    new THREE.MeshBasicMaterial({ color: 0xff79d6, transparent: true, opacity: 0.22, side: THREE.DoubleSide }),
+    new THREE.MeshBasicMaterial({ color: 0xffdd6f, transparent: true, opacity: 0.24, side: THREE.DoubleSide })
+  ];
+
+  for (let i = 0; i < 10; i += 1) {
+    const position = randomFieldPositions(1, 0)[0];
+    const radius = THREE.MathUtils.randFloat(0.65, 1.55);
+    const crater = new THREE.Mesh(new THREE.CircleGeometry(radius, 28), craterMat);
+    crater.scale.set(1.35, 0.7 + Math.random() * 0.35, 1);
+    crater.rotation.set(-Math.PI / 2, 0, Math.random() * Math.PI);
+    crater.position.set(position.x, 0.062, position.z);
+    addScenery(crater);
+
+    const rim = new THREE.Mesh(new THREE.RingGeometry(radius * 0.95, radius * 1.08, 28), rimMat);
+    rim.scale.copy(crater.scale);
+    rim.rotation.copy(crater.rotation);
+    rim.position.set(position.x, 0.072, position.z);
+    rim.receiveShadow = true;
+    addScenery(rim);
+  }
+
+  for (let i = 0; i < 16; i += 1) {
+    const position = randomFieldPositions(1, 0)[0];
+    const mark = new THREE.Mesh(
+      new THREE.RingGeometry(0.18 + Math.random() * 0.35, 0.21 + Math.random() * 0.38, 20),
+      glowMats[i % glowMats.length]
+    );
+    mark.scale.set(1.8 + Math.random() * 1.6, 0.6 + Math.random() * 0.55, 1);
+    mark.rotation.set(-Math.PI / 2, 0, Math.random() * Math.PI);
+    mark.position.set(position.x, 0.08, position.z);
+    addScenery(mark);
+  }
+}
+
+function addCrystalFields() {
+  const crystalMats = [
+    new THREE.MeshStandardMaterial({ color: 0x98f4ff, emissive: 0x1f8296, emissiveIntensity: 0.58, roughness: 0.28, metalness: 0.18 }),
+    new THREE.MeshStandardMaterial({ color: 0xff8ee8, emissive: 0x8c2b72, emissiveIntensity: 0.5, roughness: 0.32, metalness: 0.12 }),
+    new THREE.MeshStandardMaterial({ color: 0xffe883, emissive: 0xa46612, emissiveIntensity: 0.42, roughness: 0.34, metalness: 0.2 })
+  ];
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0x46445c, roughness: 0.82, metalness: 0.12 });
+  const clusterCount = THREE.MathUtils.randInt(5, 8);
+
+  for (let c = 0; c < clusterCount; c += 1) {
+    const center = randomFieldPositions(1, 0)[0];
+    const group = new THREE.Group();
+    const stones = THREE.MathUtils.randInt(3, 6);
+    for (let i = 0; i < stones; i += 1) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = Math.random() * 0.85;
+      const height = THREE.MathUtils.randFloat(0.6, 1.5);
+      const crystal = new THREE.Mesh(new THREE.ConeGeometry(0.16 + Math.random() * 0.14, height, 5), crystalMats[(c + i) % crystalMats.length]);
+      crystal.position.set(Math.cos(angle) * radius, height * 0.5, Math.sin(angle) * radius);
+      crystal.rotation.set(THREE.MathUtils.randFloat(-0.16, 0.16), Math.random() * Math.PI, THREE.MathUtils.randFloat(-0.16, 0.16));
+      crystal.castShadow = true;
+      group.add(crystal);
+    }
+
+    const base = new THREE.Mesh(new THREE.DodecahedronGeometry(0.46 + Math.random() * 0.28), baseMat);
+    base.position.y = 0.2;
+    base.scale.y = 0.34;
+    base.receiveShadow = true;
+    group.add(base);
+
+    group.position.set(center.x, 0, center.z);
+    addScenery(group);
+  }
+}
+
+function addOrbitalDebris() {
+  const metalMat = new THREE.MeshStandardMaterial({ color: 0xb8c1d9, roughness: 0.42, metalness: 0.62 });
+  const darkMetalMat = new THREE.MeshStandardMaterial({ color: 0x30354e, roughness: 0.58, metalness: 0.48 });
+  const solarMat = new THREE.MeshStandardMaterial({ color: 0x2f6b98, emissive: 0x102f50, emissiveIntensity: 0.22, roughness: 0.42, metalness: 0.28 });
+  const beaconMat = new THREE.MeshBasicMaterial({ color: 0xffe878, transparent: true, opacity: 0.74 });
+  const debrisCount = THREE.MathUtils.randInt(5, 8);
+
+  for (let i = 0; i < debrisCount; i += 1) {
+    const center = randomFieldPositions(1, 0)[0];
+    const group = new THREE.Group();
+    const core = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.35, 0.42), i % 2 ? metalMat : darkMetalMat);
+    core.position.y = 0.24;
+    core.rotation.set(Math.random() * 0.4, Math.random() * Math.PI, Math.random() * 0.3);
+    core.castShadow = true;
+    group.add(core);
+
+    const panelCount = i % 3 === 0 ? 2 : 1;
+    for (let p = 0; p < panelCount; p += 1) {
+      const panel = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.05, 0.34), solarMat);
+      panel.position.set((p === 0 ? -0.72 : 0.72), 0.26, 0);
+      panel.rotation.z = THREE.MathUtils.randFloat(-0.28, 0.28);
+      panel.castShadow = true;
+      group.add(panel);
+    }
+
+    if (i % 2 === 0) {
+      const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 8), beaconMat);
+      beacon.position.set(0, 0.52, 0.22);
+      group.add(beacon);
+    }
+
+    group.position.set(center.x, 0.02, center.z);
+    group.rotation.y = Math.random() * Math.PI * 2;
+    addScenery(group);
   }
 }
 
@@ -4171,7 +4285,7 @@ function syncUi() {
   selectedStatsEl.textContent = "";
   soundBtn.textContent = soundEnabled ? "Effects 🔊" : "Effects 🔇";
   soundBtn.setAttribute("aria-pressed", String(soundEnabled));
-  musicBtn.textContent = musicEnabled ? "Music ♪" : "Music ♪ Off";
+  musicBtn.innerHTML = `Music <span class="music-note ${musicEnabled ? "" : "muted"}" aria-hidden="true">♪</span>`;
   musicBtn.setAttribute("aria-pressed", String(musicEnabled));
   abilitiesPanelEl.innerHTML = "";
   if (hero) {
@@ -4247,7 +4361,7 @@ function heroDisplayName(hero) {
 function heroStatsHtml(hero) {
   return [
     `HP ${Math.max(0, Math.ceil(hero.hp))}/${formatStat(hero.maxHp)}`,
-    `LVL ${Math.floor(hero.level)}`
+    `XP ${formatStat(hero.xp ?? 0)}/${formatStat(hero.xpToNext ?? xpForNextLevel(hero.level))}`
   ].join(" | ");
 }
 
