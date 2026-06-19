@@ -339,8 +339,8 @@ canvas {
   position: relative;
   overflow: hidden;
   min-height: 34px;
-  min-width: 84px;
-  padding: 0 10px;
+  min-width: 70px;
+  padding: 0 8px;
   border-color: rgba(229, 234, 218, 0.22);
   background: rgba(22, 29, 25, 0.92);
   font-size: 12px;
@@ -404,7 +404,20 @@ canvas {
 }
 
 .menu-btn {
-  min-width: 92px;
+  width: 42px;
+  min-width: 42px;
+  padding: 0;
+  display: inline-grid;
+  place-content: center;
+  gap: 4px;
+}
+
+.menu-btn span {
+  display: block;
+  width: 18px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--text);
 }
 
 .action-menu__items {
@@ -436,12 +449,18 @@ canvas {
   width: 100%;
 }
 
-.selected-stats {
-  width: 100%;
-  padding-top: 4px;
-  border-top: 1px solid rgba(229, 234, 218, 0.1);
-  font-size: 16px;
+.action-menu__stats {
+  max-width: 220px;
+  padding: 6px 8px 8px;
+  border-bottom: 1px solid rgba(229, 234, 218, 0.12);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
   line-height: 1.25;
+}
+
+.selected-stats {
+  display: none;
 }
 
 .stat-bonus {
@@ -525,13 +544,13 @@ canvas {
 
   .ability-btn {
     min-height: 32px;
-    min-width: 78px;
-    padding: 0 7px;
+    min-width: 58px;
+    padding: 0 6px;
     font-size: 10px;
   }
 
   .selected-stats {
-    font-size: 14px;
+    display: none;
   }
 
   button {

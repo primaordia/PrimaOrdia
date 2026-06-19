@@ -7,6 +7,7 @@ const abilitiesPanelEl = document.querySelector("#abilitiesPanel");
 const countdownOverlayEl = document.querySelector("#countdownOverlay");
 const selectedNameEl = document.querySelector("#selectedName");
 const selectedStatsEl = document.querySelector("#selectedStats");
+const menuStatsEl = document.querySelector("#menuStats");
 const logEl = document.querySelector("#log");
 const goldEl = document.querySelector("#gold");
 const waveEl = document.querySelector("#wave");
@@ -37,7 +38,7 @@ const abilityCooldownDurations = {
   "Stinky Breath": 3,
   "Void Barrage": 5,
   "Shadow Step": 5,
-  "Sausage Rain": 5,
+  "Sausage Party": 5,
   "Inner Light": 1,
   "Space Fart": 3,
   "Selfless Belch": 5
@@ -131,7 +132,7 @@ const heroTemplates = [
     portrait: "assets/heroes/poliana.png",
     faceTexture: "assets/heroes/poliana-face.png",
     range: 6,
-    abilities: ["Void Barrage", "Shadow Step", "Sausage Rain"]
+    abilities: ["Void Barrage", "Shadow Step", "Sausage Party"]
   },
   {
     id: "frank",
@@ -1215,6 +1216,7 @@ function buildEnemyModel(group, data, bodyMat, accentMat, darkMat) {
     club.position.set(0.85, 1.2, 0.08);
     club.rotation.z = -0.45;
     club.castShadow = true;
+    club.userData.weaponPiece = true;
     group.add(club);
   } else if (data.archetype === "caster") {
     addWeapon(group, "staff", accentMat, 0.82);
@@ -1232,6 +1234,7 @@ function addWeapon(group, type, material, scale = 1) {
     blade.position.set(0.78, 1.38, 0.08);
     blade.rotation.z = -0.18;
     blade.castShadow = true;
+    blade.userData.weaponPiece = true;
     group.add(blade);
     return;
   }
@@ -1241,10 +1244,12 @@ function addWeapon(group, type, material, scale = 1) {
     staff.position.set(0.78, 1.35, 0.06);
     staff.rotation.z = -0.2;
     staff.castShadow = true;
+    staff.userData.weaponPiece = true;
     group.add(staff);
     const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.18 * scale), material);
     gem.position.set(0.95, 2.23, 0.06);
     gem.castShadow = true;
+    gem.userData.weaponPiece = true;
     group.add(gem);
     return;
   }
@@ -1262,11 +1267,13 @@ function addWeapon(group, type, material, scale = 1) {
   handle.position.set(0.72, 1.16, 0.08);
   handle.rotation.z = -0.55;
   handle.castShadow = true;
+  handle.userData.weaponPiece = true;
   group.add(handle);
   const head = new THREE.Mesh(new THREE.BoxGeometry(0.42 * scale, 0.32 * scale, 0.12 * scale), material);
   head.position.set(0.95, 1.62, 0.08);
   head.rotation.z = -0.55;
   head.castShadow = true;
+  head.userData.weaponPiece = true;
   group.add(head);
 }
 
@@ -1349,6 +1356,12 @@ function createUnit(data) {
   scene.add(group);
   const healthBar = createHealthBar(data.id, data.side);
   scene.add(healthBar.group);
+  const weaponPieces = [];
+  group.traverse((child) => {
+    if (!child.userData.weaponPiece) return;
+    child.userData.baseRotation = child.rotation.clone();
+    weaponPieces.push(child);
+  });
 
   return {
     id: data.id,
@@ -1413,6 +1426,7 @@ function createUnit(data) {
     target: null,
     targetPoint: new THREE.Vector3(data.x, 0, data.z),
     mesh: group,
+    weaponPieces,
     ring,
     healthBar
   };
@@ -1757,7 +1771,7 @@ function updateMedkits(dt) {
     if (!hero) return true;
 
     if (kit.type === "meat") {
-      hero.hp = Math.min(hero.maxHp, hero.hp + Math.ceil(hero.maxHp * 0.1));
+      healUnit(hero, Math.ceil(hero.maxHp * 0.1));
       heroes().forEach((ally) => {
         ally.atkBuffMultiplier = Math.max(ally.atkBuffMultiplier ?? 1, 1.3);
         ally.atkBuffTimer = Math.max(ally.atkBuffTimer ?? 0, 15);
@@ -1770,6 +1784,8 @@ function updateMedkits(dt) {
     } else {
       gold = Math.max(0, gold - 5);
       goldRoll(kit.mesh.position, "-5G");
+      hero.speedBuffMultiplier = Math.max(hero.speedBuffMultiplier ?? 1, 1.33);
+      hero.speedBuffTimer = Math.max(hero.speedBuffTimer ?? 0, 10);
       hero.spaceCandyHealTimer = 3;
       hero.spaceCandyHealTickTimer = 1;
       hero.spaceCandyHealAmount = kit.heal / 3;
@@ -1938,7 +1954,7 @@ function updateStatusEffects(dt) {
       unit.sparklyHealTickTimer -= dt;
       unit.sparklyHealVisualTimer -= dt;
       if (unit.sparklyHealTickTimer <= 0) {
-        unit.hp = Math.min(unit.maxHp, unit.hp + 10);
+        healUnit(unit, 10);
         unit.sparklyHealTickTimer = 1;
         healingBubbles(unit.mesh.position);
       }
@@ -1952,7 +1968,7 @@ function updateStatusEffects(dt) {
       unit.spaceCandyHealTimer = Math.max(0, unit.spaceCandyHealTimer - dt);
       unit.spaceCandyHealTickTimer -= dt;
       if (unit.spaceCandyHealTickTimer <= 0) {
-        unit.hp = Math.min(unit.maxHp, unit.hp + unit.spaceCandyHealAmount);
+        healUnit(unit, unit.spaceCandyHealAmount);
         unit.spaceCandyHealTickTimer = 1;
         healingBubbles(unit.mesh.position);
       }
@@ -1963,7 +1979,7 @@ function updateStatusEffects(dt) {
       unit.innerLightHotTimer = Math.max(0, unit.innerLightHotTimer - dt);
       unit.innerLightHotTickTimer -= dt;
       if (unit.innerLightHotTickTimer <= 0) {
-        unit.hp = Math.min(unit.maxHp, unit.hp + 20);
+        healUnit(unit, 20);
         unit.innerLightHotTickTimer = 1;
         holyLightBurst(unit.mesh.position, 0.9, 0.55);
       }
@@ -2037,6 +2053,7 @@ function updateAttackAnimations(dt) {
       unit.mesh.scale.setScalar(unit.baseScale);
       unit.mesh.position.y = 0;
       unit.mesh.rotation.z = 0;
+      resetWeaponSwing(unit);
       return;
     }
 
@@ -2050,12 +2067,34 @@ function updateAttackAnimations(dt) {
       unit.baseScale * (1 - strike * 0.04),
       unit.baseScale * (1 + strike * 0.08)
     );
+    swingWeapon(unit, progress, strike);
 
     if (unit.attackAnim === 0) {
       unit.mesh.position.y = 0;
       unit.mesh.rotation.z = 0;
       unit.mesh.scale.setScalar(unit.baseScale);
+      resetWeaponSwing(unit);
     }
+  });
+}
+
+function swingWeapon(unit, progress, strike) {
+  if (!unit.weaponPieces?.length) return;
+  const windup = Math.sin(Math.min(progress, 0.45) / 0.45 * Math.PI) * 0.5;
+  const chop = Math.sin(Math.max(0, progress - 0.18) / 0.82 * Math.PI);
+  unit.weaponPieces.forEach((piece) => {
+    const base = piece.userData.baseRotation;
+    piece.rotation.x = base.x - chop * 0.82;
+    piece.rotation.y = base.y + unit.attackDirection.x * strike * 0.38;
+    piece.rotation.z = base.z - windup + chop * 0.95;
+  });
+}
+
+function resetWeaponSwing(unit) {
+  unit.weaponPieces?.forEach((piece) => {
+    const base = piece.userData.baseRotation;
+    if (!base) return;
+    piece.rotation.copy(base);
   });
 }
 
@@ -2070,6 +2109,7 @@ function triggerAttackAnimation(attacker, defender) {
 
 function damage(attacker, defender) {
   triggerAttackAnimation(attacker, defender);
+  if (attacker.side === "enemy") playMonsterAttackSound();
   const actualDefender = selflessShieldTarget(defender) ?? defender;
   const rawAttack = attacker.side === "enemy" ? attacker.atk * 0.125 : effectiveAtk(attacker);
   const amount = Math.max(1, Math.ceil(rawAttack - actualDefender.def - (actualDefender.shieldDefBonus ?? 0)));
@@ -2656,7 +2696,7 @@ function chooseAbility(heroId, ability) {
     syncUi();
     return;
   }
-  if (ability === "Sausage Rain") {
+  if (ability === "Sausage Party") {
     if (castSausageRain(hero)) startAbilityCooldown(hero, ability);
     syncUi();
     return;
@@ -2746,7 +2786,7 @@ function castSparklyHeal(hero) {
   let affected = 0;
   heroes().forEach((ally) => {
     if (ally.mesh.position.distanceTo(hero.mesh.position) > 4) return;
-    ally.hp = Math.min(ally.maxHp, ally.hp + 50);
+    healUnit(ally, 50);
     ally.sparklyHealTimer = 5;
     ally.sparklyHealTickTimer = 1;
     ally.sparklyHealVisualTimer = 0;
@@ -2808,21 +2848,9 @@ function castVoidBarrageAt(hero, point) {
     starShotArrow(hero.mesh.position, arrowImpact);
   }
   playArrowBarrageSound();
+  hero.target = null;
   log(hits ? `${hero.name} fired Void Barrage.` : `${hero.name} fired Void Barrage at the target.`);
   return true;
-}
-
-function starTargetCircle(position, radius = 0.52) {
-  const target = new THREE.Mesh(
-    new THREE.RingGeometry(radius * 0.73, radius, 32),
-    new THREE.MeshBasicMaterial({ color: 0x9c59d1, transparent: true, opacity: 0.95, side: THREE.DoubleSide })
-  );
-  target.rotation.x = -Math.PI / 2;
-  target.position.set(position.x, 0.14, position.z);
-  target.userData.life = 0.75;
-  target.userData.kind = "star-target";
-  scene.add(target);
-  markers.push(target);
 }
 
 function castBerryShield(hero) {
@@ -2891,7 +2919,7 @@ function castSausageRain(hero) {
     ?? foes.sort((a, b) => a.mesh.position.distanceTo(hero.mesh.position) - b.mesh.position.distanceTo(hero.mesh.position))[0];
 
   if (!target) {
-    log("No enemies for Sausage Rain.");
+    log("No enemies for Sausage Party.");
     return false;
   }
 
@@ -2908,8 +2936,8 @@ function castSausageRain(hero) {
     sparklyHealBurst(ally.mesh.position);
   });
   sausageRain(target.mesh.position);
-  playYumYumSound();
-  log(`${hero.name} called Sausage Rain on ${affected.length} enemy${affected.length === 1 ? "" : "ies"}.`);
+  playHooraySound();
+  log(`${hero.name} started a Sausage Party on ${affected.length} enemy${affected.length === 1 ? "" : "ies"}.`);
   return affected.length > 0;
 }
 
@@ -2918,7 +2946,7 @@ function castInnerLight(hero) {
   heroes().forEach((ally) => {
     if (ally.mesh.position.distanceTo(hero.mesh.position) > 3.5) return;
     const healing = ally.id === hero.id && hero.selflessShieldTimer > 0 ? 75 : 25;
-    ally.hp = Math.min(ally.maxHp, ally.hp + healing);
+    healUnit(ally, healing);
     ally.innerLightHotTimer = 3;
     ally.innerLightHotTickTimer = 1;
     holyLightBurst(ally.mesh.position, 0.85, 0.55);
@@ -2981,7 +3009,7 @@ function castSelflessShield(hero) {
   }
 
   const beforeHeal = nearby.hp;
-  nearby.hp = Math.min(nearby.maxHp, nearby.hp + 70);
+  healUnit(nearby, 70);
   const actualHealing = nearby.hp - beforeHeal;
   if (actualHealing > 0) hero.hp = Math.max(1, hero.hp - Math.ceil(actualHealing * 0.5));
   nearby.shieldDefBonus = Math.max(nearby.shieldDefBonus ?? 0, 4);
@@ -3040,7 +3068,6 @@ function starShotArrow(from, to) {
   arrow.userData.end = end;
   arrow.userData.age = 0;
   arrow.userData.duration = 0.42;
-  arrow.userData.impacted = false;
   scene.add(arrow);
   markers.push(arrow);
 }
@@ -3196,6 +3223,37 @@ function goldRoll(position, text) {
   sprite.userData.life = 1.15;
   sprite.userData.velocity = new THREE.Vector3(0, 0.045, 0);
   sprite.userData.kind = "gold-roll";
+  scene.add(sprite);
+  markers.push(sprite);
+}
+
+function healUnit(unit, amount) {
+  if (!unit || unit.hp <= 0 || amount <= 0) return 0;
+  const before = unit.hp;
+  unit.hp = Math.min(unit.maxHp, unit.hp + amount);
+  const healed = Math.max(0, Math.round(unit.hp - before));
+  if (healed > 0) healRoll(unit.mesh.position, `+${healed}`);
+  return healed;
+}
+
+function healRoll(position, text) {
+  const label = createUiTexture(text, {
+    fontSize: 72,
+    fill: "rgba(18, 58, 30, 0.86)",
+    stroke: "rgba(99, 211, 99, 0.92)",
+    text: "#8eff8a"
+  });
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: label.texture,
+    transparent: true,
+    depthTest: false
+  }));
+  sprite.position.set(position.x, 3.95, position.z);
+  sprite.scale.set(1.15, 0.56, 1);
+  sprite.renderOrder = 43;
+  sprite.userData.life = 1.05;
+  sprite.userData.velocity = new THREE.Vector3(0, 0.052, 0);
+  sprite.userData.kind = "heal-roll";
   scene.add(sprite);
   markers.push(sprite);
 }
@@ -3593,31 +3651,30 @@ function playShineSound() {
   playBellSequence([660, 990, 1320, 1980], 2, 0.1);
 }
 
-function playYumYumSound() {
+function playHooraySound() {
   const context = getAudioContext();
   if (!context) return;
   const now = context.currentTime;
   const syllables = [
-    { start: 0, frequency: 720 },
-    { start: 0.34, frequency: 780 },
-    { start: 0.68, frequency: 740 }
+    { start: 0, frequency: 560 },
+    { start: 0.18, frequency: 760 }
   ];
 
   syllables.forEach((syllable) => {
     const start = now + syllable.start;
-    const duration = 0.28;
+    const duration = 0.42;
     const oscillator = context.createOscillator();
     const formant = context.createBiquadFilter();
     const gain = context.createGain();
 
     oscillator.type = "triangle";
     oscillator.frequency.setValueAtTime(syllable.frequency, start);
-    oscillator.frequency.exponentialRampToValueAtTime(syllable.frequency * 0.78, start + duration);
+    oscillator.frequency.exponentialRampToValueAtTime(syllable.frequency * 1.28, start + duration);
     formant.type = "bandpass";
-    formant.frequency.setValueAtTime(980, start);
-    formant.Q.setValueAtTime(4.8, start);
+    formant.frequency.setValueAtTime(1220, start);
+    formant.Q.setValueAtTime(3.8, start);
     gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(0.34, start + 0.035);
+    gain.gain.exponentialRampToValueAtTime(0.38, start + 0.04);
     gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
 
     oscillator.connect(formant);
@@ -3661,6 +3718,22 @@ function playArrowBarrageSound() {
     noise.start(start);
     noise.stop(start + duration);
   }
+}
+
+function playMonsterAttackSound() {
+  const context = getAudioContext();
+  if (!context) return;
+  playRumbleSound(context, {
+    duration: 0.42,
+    startFrequency: 104,
+    endFrequency: 58,
+    noiseFrequency: 520,
+    volume: 0.28,
+    wobble: 18,
+    wobbleDepth: 24,
+    noiseLevel: 0.62,
+    waveType: "sawtooth"
+  });
 }
 
 function playBellSequence(frequencies, duration, volume) {
@@ -3766,11 +3839,7 @@ function syncSelectionRings() {
       const progress = THREE.MathUtils.clamp(marker.userData.age / marker.userData.duration, 0, 1);
       marker.position.copy(marker.userData.start).lerp(marker.userData.end, progress);
       marker.scale.setScalar(1 + Math.sin(progress * Math.PI) * 0.22);
-      if (progress >= 1 && !marker.userData.impacted) {
-        marker.userData.impacted = true;
-        flash(marker.userData.end, 0xf1d34f);
-      }
-    } else if (marker.userData.kind === "gold-roll") {
+    } else if (marker.userData.kind === "gold-roll" || marker.userData.kind === "heal-roll") {
       marker.position.add(marker.userData.velocity);
       marker.scale.multiplyScalar(1.004);
     } else if (marker.userData.kind === "shield-berry") {
@@ -3828,9 +3897,8 @@ function syncUi() {
 
   const hero = selectedHero();
   selectedNameEl.textContent = hero ? heroDisplayName(hero) : "Choose a hero";
-  selectedStatsEl.innerHTML = hero
-    ? heroStatsHtml(hero)
-    : "Tap a hero, then tap the field to move.";
+  selectedStatsEl.textContent = "";
+  menuStatsEl.innerHTML = hero ? heroStatsHtml(hero) : "Choose a hero to see stats.";
   abilitiesPanelEl.innerHTML = "";
   if (hero) {
     hero.abilities.forEach((ability) => {
