@@ -12,6 +12,7 @@ const goldEl = document.querySelector("#gold");
 const waveEl = document.querySelector("#wave");
 const menuBtn = document.querySelector("#menuBtn");
 const actionMenuEl = document.querySelector("#actionMenu");
+const soundBtn = document.querySelector("#soundBtn");
 const rallyBtn = document.querySelector("#rallyBtn");
 const restartBtn = document.querySelector("#restartBtn");
 
@@ -81,10 +82,16 @@ let actionMenuOpen = false;
 let targetingAbility = null;
 let audioContext = null;
 let masterAudioGain = null;
+let soundEnabled = true;
 const masterAudioVolume = 5;
 const audioAssets = {
   spaceFart: new Audio("assets/audio/space-fart.mp3"),
-  selflessBelch: new Audio("assets/audio/selfless-belch.mp3")
+  selflessBelch: new Audio("assets/audio/selfless-belch.mp3"),
+  innerLight: new Audio("assets/audio/inner-light.mp3"),
+  sparklyHeal: new Audio("assets/audio/sparkly-heal.mp3"),
+  starFairyAttack: new Audio("assets/audio/star-fairy-attack.mp3"),
+  paladinAttack: new Audio("assets/audio/paladin-attack.mp3"),
+  enemyAttack: new Audio("assets/audio/enemy-attack.mp3")
 };
 
 const heroTemplates = [
@@ -156,7 +163,7 @@ const heroTemplates = [
 const enemyTemplates = [
   { name: "Grub Raider", color: 0xa54939, accent: 0x3a1e18, hp: 62, atk: 4, def: 0, range: 1.8, speed: 2.9, archetype: "raider" },
   { name: "Stone Brute", color: 0x8c6f55, accent: 0x4a3a2f, hp: 98, atk: 6, def: 1, range: 1.7, speed: 2.25, archetype: "brute" },
-  { name: "Hex Imp", color: 0x9b62bd, accent: 0x67d7a2, hp: 48, atk: 5, def: 0, range: 4.6, speed: 3.25, archetype: "caster" }
+  { name: "Hex Imp", color: 0x9b62bd, accent: 0x67d7a2, hp: 48, atk: 5, def: 0, range: 2.4, speed: 3.25, archetype: "caster" }
 ];
 
 init();
@@ -200,6 +207,7 @@ function init() {
   canvas.addEventListener("pointerleave", removeHoverPopup);
   menuBtn.addEventListener("click", toggleActionMenu);
   document.addEventListener("pointerdown", closeActionMenuFromPointer);
+  soundBtn.addEventListener("click", toggleSound);
   rallyBtn.addEventListener("click", rallyHeroes);
   restartBtn.addEventListener("click", () => {
     setActionMenuOpen(false);
@@ -261,6 +269,20 @@ function setActionMenuOpen(open) {
 function toggleActionMenu(event) {
   event.stopPropagation();
   setActionMenuOpen(!actionMenuOpen);
+}
+
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  if (!soundEnabled) {
+    Object.values(audioAssets).forEach((asset) => {
+      asset.pause();
+      asset.currentTime = 0;
+    });
+  }
+  if (masterAudioGain && audioContext) {
+    masterAudioGain.gain.setValueAtTime(soundEnabled ? masterAudioVolume : 0, audioContext.currentTime);
+  }
+  syncUi();
 }
 
 function closeActionMenuFromPointer(event) {
@@ -1781,6 +1803,7 @@ function updateMedkits(dt) {
       });
       hero.speedBuffMultiplier = Math.max(hero.speedBuffMultiplier ?? 1, 1.33);
       hero.speedBuffTimer = Math.max(hero.speedBuffTimer ?? 0, 10);
+      awardHeroXp(hero, 10);
       log(`${hero.name} absorbed Bubblenium.`);
     } else {
       gold = Math.max(0, gold - 5);
@@ -1791,6 +1814,7 @@ function updateMedkits(dt) {
       hero.spaceCandyHealTickTimer = 1;
       hero.spaceCandyHealAmount = kit.heal / 3;
       healingBubbles(hero.mesh.position);
+      awardHeroXp(hero, 10);
       log(`${hero.name} ate a Space Candy.`);
     }
     flash(hero.mesh.position, 0x63d463);
@@ -2110,7 +2134,7 @@ function triggerAttackAnimation(attacker, defender) {
 
 function damage(attacker, defender) {
   triggerAttackAnimation(attacker, defender);
-  if (attacker.side === "enemy") playMonsterAttackSound();
+  playAutoAttackSound(attacker);
   const actualDefender = selflessShieldTarget(defender) ?? defender;
   const rawAttack = attacker.side === "enemy" ? attacker.atk * 0.125 : effectiveAtk(attacker);
   const amount = Math.max(1, Math.ceil(rawAttack - actualDefender.def - (actualDefender.shieldDefBonus ?? 0)));
@@ -2147,8 +2171,10 @@ function xpForNextLevel(level) {
 
 function awardHeroXp(hero, amount) {
   if (!hero || hero.side !== "hero") return;
-  xpRoll(hero.mesh.position, `+${amount} XP`);
-  hero.xp = (hero.xp ?? 0) + amount;
+  const xpGain = Math.round(amount * 10) / 10;
+  if (xpGain <= 0) return;
+  xpRoll(hero.mesh.position, `+${formatXpGain(xpGain)}XP`);
+  hero.xp = (hero.xp ?? 0) + xpGain;
   hero.xpToNext = hero.xpToNext ?? xpForNextLevel(hero.level);
   while (hero.xp >= hero.xpToNext) {
     hero.xp -= hero.xpToNext;
@@ -2158,6 +2184,10 @@ function awardHeroXp(hero, amount) {
     flash(hero.mesh.position, 0xf1d34f);
     log(`${hero.name} reached level ${hero.level}.`);
   }
+}
+
+function formatXpGain(amount) {
+  return Number.isInteger(amount) ? String(amount) : amount.toFixed(1);
 }
 
 function applyXpLevelStats(hero) {
@@ -3231,7 +3261,10 @@ function healUnit(unit, amount) {
   const before = unit.hp;
   unit.hp = Math.min(unit.maxHp, unit.hp + amount);
   const healed = Math.max(0, Math.round(unit.hp - before));
-  if (healed > 0) healRoll(unit.mesh.position, `+${healed}`);
+  if (healed > 0) {
+    healRoll(unit.mesh.position, `+${healed}HP`);
+    awardHeroXp(unit, healed * 0.05);
+  }
   return healed;
 }
 
@@ -3526,7 +3559,7 @@ function getAudioContext() {
   if (!audioContext) {
     audioContext = new AudioContextClass();
     masterAudioGain = audioContext.createGain();
-    masterAudioGain.gain.setValueAtTime(masterAudioVolume, audioContext.currentTime);
+    masterAudioGain.gain.setValueAtTime(soundEnabled ? masterAudioVolume : 0, audioContext.currentTime);
     masterAudioGain.connect(audioContext.destination);
   }
   if (audioContext.state === "suspended") audioContext.resume();
@@ -3536,13 +3569,14 @@ function getAudioContext() {
 function audioOutput(context) {
   if (!masterAudioGain) {
     masterAudioGain = context.createGain();
-    masterAudioGain.gain.setValueAtTime(masterAudioVolume, context.currentTime);
+    masterAudioGain.gain.setValueAtTime(soundEnabled ? masterAudioVolume : 0, context.currentTime);
     masterAudioGain.connect(context.destination);
   }
   return masterAudioGain;
 }
 
 function playAudioAsset(asset, fallback) {
+  if (!soundEnabled) return;
   if (!asset) {
     fallback?.();
     return;
@@ -3667,11 +3701,33 @@ function playTinkleSound() {
 }
 
 function playSparkleRingSound() {
-  playBellSequence([880, 1175, 1568, 2093, 2637], 0.85, 0.07);
+  playAudioAsset(audioAssets.sparklyHeal, playGeneratedSparkleRingSound);
 }
 
 function playShineSound() {
+  playAudioAsset(audioAssets.innerLight, playGeneratedShineSound);
+}
+
+function playGeneratedSparkleRingSound() {
+  playBellSequence([880, 1175, 1568, 2093, 2637], 0.85, 0.07);
+}
+
+function playGeneratedShineSound() {
   playBellSequence([660, 990, 1320, 1980], 2, 0.1);
+}
+
+function playAutoAttackSound(attacker) {
+  if (attacker.side === "enemy") {
+    playAudioAsset(audioAssets.enemyAttack, playMonsterAttackSound);
+    return;
+  }
+  if (attacker.id === "leela") {
+    playAudioAsset(audioAssets.starFairyAttack);
+    return;
+  }
+  if (attacker.id === "frank") {
+    playAudioAsset(audioAssets.paladinAttack);
+  }
 }
 
 function playHooraySound() {
@@ -3921,6 +3977,8 @@ function syncUi() {
   const hero = selectedHero();
   selectedNameEl.textContent = hero ? `${heroDisplayName(hero)} | ${heroStatsHtml(hero)}` : "Choose a hero";
   selectedStatsEl.textContent = "";
+  soundBtn.textContent = soundEnabled ? "Sound On" : "Sound Off";
+  soundBtn.setAttribute("aria-pressed", String(soundEnabled));
   abilitiesPanelEl.innerHTML = "";
   if (hero) {
     hero.abilities.forEach((ability) => {
