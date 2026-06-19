@@ -7,13 +7,11 @@ const abilitiesPanelEl = document.querySelector("#abilitiesPanel");
 const countdownOverlayEl = document.querySelector("#countdownOverlay");
 const selectedNameEl = document.querySelector("#selectedName");
 const selectedStatsEl = document.querySelector("#selectedStats");
-const menuStatsEl = document.querySelector("#menuStats");
 const logEl = document.querySelector("#log");
 const goldEl = document.querySelector("#gold");
 const waveEl = document.querySelector("#wave");
 const menuBtn = document.querySelector("#menuBtn");
 const actionMenuEl = document.querySelector("#actionMenu");
-const upgradeBtn = document.querySelector("#upgradeBtn");
 const rallyBtn = document.querySelector("#rallyBtn");
 const restartBtn = document.querySelector("#restartBtn");
 
@@ -84,6 +82,10 @@ let targetingAbility = null;
 let audioContext = null;
 let masterAudioGain = null;
 const masterAudioVolume = 5;
+const audioAssets = {
+  spaceFart: new Audio("assets/audio/space-fart.mp3"),
+  selflessBelch: new Audio("assets/audio/selfless-belch.mp3")
+};
 
 const heroTemplates = [
   {
@@ -198,7 +200,6 @@ function init() {
   canvas.addEventListener("pointerleave", removeHoverPopup);
   menuBtn.addEventListener("click", toggleActionMenu);
   document.addEventListener("pointerdown", closeActionMenuFromPointer);
-  upgradeBtn.addEventListener("click", upgradeSelected);
   rallyBtn.addEventListener("click", rallyHeroes);
   restartBtn.addEventListener("click", () => {
     setActionMenuOpen(false);
@@ -2146,6 +2147,7 @@ function xpForNextLevel(level) {
 
 function awardHeroXp(hero, amount) {
   if (!hero || hero.side !== "hero") return;
+  xpRoll(hero.mesh.position, `+${amount} XP`);
   hero.xp = (hero.xp ?? 0) + amount;
   hero.xpToNext = hero.xpToNext ?? xpForNextLevel(hero.level);
   while (hero.xp >= hero.xpToNext) {
@@ -3168,31 +3170,6 @@ function rallyHeroes() {
   log("Squad rallying.");
 }
 
-function upgradeSelected() {
-  setActionMenuOpen(false);
-  const hero = selectedHero();
-  if (!hero) return;
-  const cost = upgradeCost(hero);
-  if (gold < cost) {
-    log(`Upgrade needs ${cost} gold.`);
-    return;
-  }
-  gold -= cost;
-  hero.level = Math.floor(hero.level) + 1;
-  hero.maxHp += 22;
-  hero.hp = hero.maxHp;
-  hero.atk += 4;
-  hero.def += 1;
-  hero.range += 0.12;
-  hero.speed += 0.12;
-  log(`${hero.name} upgraded to level ${hero.level}.`);
-  syncUi();
-}
-
-function upgradeCost(hero) {
-  return 35 + (Math.floor(hero.level) - 1) * 20;
-}
-
 function flash(position, color) {
   const marker = new THREE.Mesh(
     new THREE.RingGeometry(0.5, 0.74, 32),
@@ -3223,6 +3200,28 @@ function goldRoll(position, text) {
   sprite.userData.life = 1.15;
   sprite.userData.velocity = new THREE.Vector3(0, 0.045, 0);
   sprite.userData.kind = "gold-roll";
+  scene.add(sprite);
+  markers.push(sprite);
+}
+
+function xpRoll(position, text) {
+  const label = createUiTexture(text, {
+    fontSize: 72,
+    fill: "rgba(39, 26, 70, 0.88)",
+    stroke: "rgba(156, 89, 209, 0.92)",
+    text: "#e0c7ff"
+  });
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: label.texture,
+    transparent: true,
+    depthTest: false
+  }));
+  sprite.position.set(position.x, 4.18, position.z);
+  sprite.scale.set(1.32, 0.58, 1);
+  sprite.renderOrder = 44;
+  sprite.userData.life = 1.2;
+  sprite.userData.velocity = new THREE.Vector3(0, 0.055, 0);
+  sprite.userData.kind = "xp-roll";
   scene.add(sprite);
   markers.push(sprite);
 }
@@ -3543,7 +3542,27 @@ function audioOutput(context) {
   return masterAudioGain;
 }
 
+function playAudioAsset(asset, fallback) {
+  if (!asset) {
+    fallback?.();
+    return;
+  }
+  try {
+    asset.pause();
+    asset.currentTime = 0;
+    asset.volume = 1;
+    const playPromise = asset.play();
+    if (playPromise?.catch) playPromise.catch(() => fallback?.());
+  } catch {
+    fallback?.();
+  }
+}
+
 function playSpaceFartSound() {
+  playAudioAsset(audioAssets.spaceFart, playGeneratedSpaceFartSound);
+}
+
+function playGeneratedSpaceFartSound() {
   const context = getAudioContext();
   if (!context) return;
   playRumbleSound(context, {
@@ -3560,6 +3579,10 @@ function playSpaceFartSound() {
 }
 
 function playBelchSound() {
+  playAudioAsset(audioAssets.selflessBelch, playGeneratedBelchSound);
+}
+
+function playGeneratedBelchSound() {
   const context = getAudioContext();
   if (!context) return;
   playRumbleSound(context, {
@@ -3839,7 +3862,7 @@ function syncSelectionRings() {
       const progress = THREE.MathUtils.clamp(marker.userData.age / marker.userData.duration, 0, 1);
       marker.position.copy(marker.userData.start).lerp(marker.userData.end, progress);
       marker.scale.setScalar(1 + Math.sin(progress * Math.PI) * 0.22);
-    } else if (marker.userData.kind === "gold-roll" || marker.userData.kind === "heal-roll") {
+    } else if (marker.userData.kind === "gold-roll" || marker.userData.kind === "heal-roll" || marker.userData.kind === "xp-roll") {
       marker.position.add(marker.userData.velocity);
       marker.scale.multiplyScalar(1.004);
     } else if (marker.userData.kind === "shield-berry") {
@@ -3896,9 +3919,8 @@ function syncUi() {
   countdownOverlayEl.classList.toggle("show", showCountdown);
 
   const hero = selectedHero();
-  selectedNameEl.textContent = hero ? heroDisplayName(hero) : "Choose a hero";
+  selectedNameEl.textContent = hero ? `${heroDisplayName(hero)} | ${heroStatsHtml(hero)}` : "Choose a hero";
   selectedStatsEl.textContent = "";
-  menuStatsEl.innerHTML = hero ? heroStatsHtml(hero) : "Choose a hero to see stats.";
   abilitiesPanelEl.innerHTML = "";
   if (hero) {
     hero.abilities.forEach((ability) => {
@@ -3924,10 +3946,6 @@ function syncUi() {
       abilitiesPanelEl.appendChild(button);
     });
   }
-  const cost = hero ? upgradeCost(hero) : 35;
-  upgradeBtn.textContent = `Upgrade ${cost}g`;
-  upgradeBtn.disabled = !hero || gold < cost || state !== "playing";
-
   squadEl.innerHTML = "";
   heroDockEl.innerHTML = "";
   sortedHeroesForHud().forEach((unit) => {
@@ -3977,9 +3995,6 @@ function heroDisplayName(hero) {
 function heroStatsHtml(hero) {
   return [
     `HP ${Math.max(0, Math.ceil(hero.hp))}/${formatStat(hero.maxHp)}`,
-    `ATK ${formatStat(hero.atk)}${bonusMarkup(atkBonus(hero))}`,
-    `RNG ${formatStat(hero.range)}`,
-    `DEF ${formatStat(hero.def)}${bonusMarkup(defBonus(hero))}`,
     `LVL ${Math.floor(hero.level)}`,
     `XP ${Math.floor(hero.xp ?? 0)}/${hero.xpToNext ?? xpForNextLevel(hero.level)}`
   ].join(" | ");
