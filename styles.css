@@ -163,6 +163,7 @@ canvas {
   height: 100%;
   display: block;
   background: #111712;
+  touch-action: none;
 }
 
 .hero-dock {

@@ -54,6 +54,20 @@ let renderer;
 let scene;
 let camera;
 let ground;
+let viewportWidth = window.innerWidth;
+let viewportHeight = window.innerHeight;
+let viewportIsPortrait = viewportHeight > viewportWidth;
+let cameraZoom = 1.2;
+const cameraPan = new THREE.Vector3(0, 0, 0);
+const activePointers = new Map();
+const cameraControls = {
+  moved: false,
+  tapEvent: null,
+  lastSingle: null,
+  pinchDistance: 0,
+  pinchZoom: 1.2,
+  pinchCenter: null
+};
 let selectedId = "aegis";
 let gold = 60;
 let wave = 1;
@@ -206,7 +220,10 @@ function init() {
   window.addEventListener("resize", resize);
   canvas.addEventListener("pointerdown", onPointerDown);
   canvas.addEventListener("pointermove", onPointerMove);
+  canvas.addEventListener("pointerup", onPointerUp);
+  canvas.addEventListener("pointercancel", onPointerUp);
   canvas.addEventListener("pointerleave", removeHoverPopup);
+  canvas.addEventListener("wheel", onWheel, { passive: false });
   menuBtn.addEventListener("click", toggleActionMenu);
   document.addEventListener("pointerdown", closeActionMenuFromPointer);
   document.addEventListener("pointerdown", startBackgroundMusic);
@@ -2566,6 +2583,12 @@ function roundRect(context, x, y, width, height, radius) {
 }
 
 function onPointerMove(event) {
+  if (activePointers.has(event.pointerId)) {
+    event.preventDefault();
+    updateCameraPointer(event);
+    return;
+  }
+
   if (state !== "playing") {
     removeHoverPopup();
     return;
@@ -2599,6 +2622,117 @@ function onPointerMove(event) {
 }
 
 function onPointerDown(event) {
+  event.preventDefault();
+  activePointers.set(event.pointerId, {
+    x: event.clientX,
+    y: event.clientY,
+    prevX: event.clientX,
+    prevY: event.clientY,
+    startX: event.clientX,
+    startY: event.clientY
+  });
+  cameraControls.tapEvent = event;
+  cameraControls.moved = false;
+  cameraControls.lastSingle = { x: event.clientX, y: event.clientY };
+  if (canvas.setPointerCapture) canvas.setPointerCapture(event.pointerId);
+  if (activePointers.size === 2) beginPinchZoom();
+  removeHoverPopup();
+}
+
+function onPointerUp(event) {
+  if (!activePointers.has(event.pointerId)) return;
+  event.preventDefault();
+  const wasSingleTap = activePointers.size === 1 && !cameraControls.moved;
+  activePointers.delete(event.pointerId);
+  if (canvas.releasePointerCapture) {
+    try {
+      canvas.releasePointerCapture(event.pointerId);
+    } catch {
+      // Pointer capture can already be released by the browser.
+    }
+  }
+
+  if (wasSingleTap) handleBattlefieldTap(event);
+
+  if (activePointers.size === 1) {
+    const remaining = [...activePointers.values()][0];
+    cameraControls.lastSingle = { x: remaining.x, y: remaining.y };
+    cameraControls.pinchCenter = null;
+  } else if (activePointers.size === 0) {
+    cameraControls.tapEvent = null;
+    cameraControls.lastSingle = null;
+    cameraControls.pinchCenter = null;
+  }
+}
+
+function updateCameraPointer(event) {
+  const pointerState = activePointers.get(event.pointerId);
+  pointerState.prevX = pointerState.x;
+  pointerState.prevY = pointerState.y;
+  pointerState.x = event.clientX;
+  pointerState.y = event.clientY;
+
+  if (activePointers.size >= 2) {
+    updatePinchZoom();
+    return;
+  }
+
+  const distanceFromStart = Math.hypot(pointerState.x - pointerState.startX, pointerState.y - pointerState.startY);
+  if (distanceFromStart < 6 && !cameraControls.moved) return;
+  cameraControls.moved = true;
+  panCameraByPixels(pointerState.x - pointerState.prevX, pointerState.y - pointerState.prevY);
+}
+
+function beginPinchZoom() {
+  const pair = [...activePointers.values()].slice(0, 2);
+  cameraControls.pinchDistance = pointerDistance(pair);
+  cameraControls.pinchZoom = cameraZoom;
+  cameraControls.pinchCenter = pointerCenter(pair);
+  cameraControls.moved = true;
+}
+
+function updatePinchZoom() {
+  const pair = [...activePointers.values()].slice(0, 2);
+  const distance = pointerDistance(pair);
+  const center = pointerCenter(pair);
+  if (cameraControls.pinchDistance > 0) {
+    setCameraZoom(cameraControls.pinchZoom * (distance / cameraControls.pinchDistance));
+  }
+  if (cameraControls.pinchCenter) {
+    panCameraByPixels(center.x - cameraControls.pinchCenter.x, center.y - cameraControls.pinchCenter.y);
+  }
+  cameraControls.pinchCenter = center;
+}
+
+function pointerDistance(pair) {
+  return Math.hypot(pair[0].x - pair[1].x, pair[0].y - pair[1].y);
+}
+
+function pointerCenter(pair) {
+  return {
+    x: (pair[0].x + pair[1].x) / 2,
+    y: (pair[0].y + pair[1].y) / 2
+  };
+}
+
+function panCameraByPixels(deltaX, deltaY) {
+  const scale = 0.035 / cameraZoom;
+  cameraPan.x = THREE.MathUtils.clamp(cameraPan.x - deltaX * scale, -9, 9);
+  cameraPan.z = THREE.MathUtils.clamp(cameraPan.z - deltaY * scale, -8, 8);
+  updateCameraFrame();
+}
+
+function setCameraZoom(nextZoom) {
+  cameraZoom = THREE.MathUtils.clamp(nextZoom, 0.85, 2.1);
+  updateCameraFrame();
+}
+
+function onWheel(event) {
+  event.preventDefault();
+  setCameraZoom(cameraZoom * (event.deltaY < 0 ? 1.08 : 0.92));
+}
+
+function handleBattlefieldTap(event) {
   if (state !== "playing") return;
   const payHeroId = payButtonFromPointerEvent(event);
   if (payHeroId) {
@@ -4087,8 +4221,7 @@ function heroDisplayName(hero) {
 function heroStatsHtml(hero) {
   return [
     `HP ${Math.max(0, Math.ceil(hero.hp))}/${formatStat(hero.maxHp)}`,
-    `LVL ${Math.floor(hero.level)}`,
-    `XP ${Math.floor(hero.xp ?? 0)}/${hero.xpToNext ?? xpForNextLevel(hero.level)}`
+    `LVL ${Math.floor(hero.level)}`
   ].join(" | ");
 }
 
@@ -4146,23 +4279,27 @@ function distanceUnits(a, b) {
 }
 
 function resize() {
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-  const isPortrait = height > width;
-  renderer.setSize(width, height, false);
-  camera.aspect = width / height;
-  document.body.classList.toggle("portrait", isPortrait);
+  viewportWidth = window.innerWidth;
+  viewportHeight = window.innerHeight;
+  viewportIsPortrait = viewportHeight > viewportWidth;
+  renderer.setSize(viewportWidth, viewportHeight, false);
+  document.body.classList.toggle("portrait", viewportIsPortrait);
+  updateCameraFrame();
+}
 
-  if (isPortrait) {
-    camera.fov = 57;
-    camera.position.set(0, 36, 32);
-    camera.lookAt(0, 0, 2.6);
-    camera.setViewOffset(width, height, 0, Math.round(height * 0.08), width, height);
+function updateCameraFrame() {
+  camera.aspect = viewportWidth / viewportHeight;
+
+  if (viewportIsPortrait) {
+    camera.fov = 57 / cameraZoom;
+    camera.position.set(cameraPan.x, 36, cameraPan.z + 32);
+    camera.lookAt(cameraPan.x, 0, cameraPan.z + 2.6);
+    camera.setViewOffset(viewportWidth, viewportHeight, 0, Math.round(viewportHeight * 0.08), viewportWidth, viewportHeight);
   } else {
     camera.clearViewOffset();
-    camera.fov = width < 700 ? 52 : 50;
-    camera.position.set(0, width < 700 ? 33 : 29, width < 700 ? 33 : 30);
-    camera.lookAt(0, 0, 1.2);
+    camera.fov = (viewportWidth < 700 ? 52 : 50) / cameraZoom;
+    camera.position.set(cameraPan.x, viewportWidth < 700 ? 33 : 29, cameraPan.z + (viewportWidth < 700 ? 33 : 30));
+    camera.lookAt(cameraPan.x, 0, cameraPan.z + 1.2);
   }
 
   camera.updateProjectionMatrix();
