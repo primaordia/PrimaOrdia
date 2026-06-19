@@ -84,6 +84,7 @@ let audioContext = null;
 let masterAudioGain = null;
 let soundEnabled = true;
 const masterAudioVolume = 5;
+const backgroundMusicVolume = 0.18;
 const audioAssets = {
   spaceFart: new Audio("assets/audio/space-fart.mp3"),
   selflessBelch: new Audio("assets/audio/selfless-belch.mp3"),
@@ -91,7 +92,8 @@ const audioAssets = {
   sparklyHeal: new Audio("assets/audio/sparkly-heal.mp3"),
   starFairyAttack: new Audio("assets/audio/star-fairy-attack.mp3"),
   paladinAttack: new Audio("assets/audio/paladin-attack.mp3"),
-  enemyAttack: new Audio("assets/audio/enemy-attack.mp3")
+  enemyAttack: new Audio("assets/audio/enemy-attack.mp3"),
+  backgroundMusic: new Audio("assets/audio/background-music-1.mp3")
 };
 
 const heroTemplates = [
@@ -207,6 +209,7 @@ function init() {
   canvas.addEventListener("pointerleave", removeHoverPopup);
   menuBtn.addEventListener("click", toggleActionMenu);
   document.addEventListener("pointerdown", closeActionMenuFromPointer);
+  document.addEventListener("pointerdown", startBackgroundMusic);
   soundBtn.addEventListener("click", toggleSound);
   rallyBtn.addEventListener("click", rallyHeroes);
   restartBtn.addEventListener("click", () => {
@@ -282,6 +285,7 @@ function toggleSound() {
   if (masterAudioGain && audioContext) {
     masterAudioGain.gain.setValueAtTime(soundEnabled ? masterAudioVolume : 0, audioContext.currentTime);
   }
+  if (soundEnabled) startBackgroundMusic();
   syncUi();
 }
 
@@ -3593,6 +3597,16 @@ function audioOutput(context) {
     masterAudioGain.connect(context.destination);
   }
   return masterAudioGain;
+}
+
+function startBackgroundMusic() {
+  if (!soundEnabled) return;
+  const music = audioAssets.backgroundMusic;
+  music.loop = true;
+  music.volume = backgroundMusicVolume;
+  if (!music.paused) return;
+  const playPromise = music.play();
+  if (playPromise?.catch) playPromise.catch(() => {});
 }
 
 function playAudioAsset(asset, fallback) {
