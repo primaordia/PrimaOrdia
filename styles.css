@@ -112,8 +112,11 @@ body.intro-active .game-shell {
   place-items: end center;
   padding: max(18px, env(safe-area-inset-top)) 18px max(34px, env(safe-area-inset-bottom));
   background:
-    linear-gradient(180deg, rgba(4, 2, 18, 0.04), rgba(4, 2, 18, 0.2) 62%, rgba(4, 2, 18, 0.72)),
-    url("assets/intro.png") center / cover no-repeat;
+    linear-gradient(135deg, rgba(104, 199, 223, 0.3) 0 18%, transparent 18% 100%),
+    linear-gradient(220deg, rgba(238, 125, 69, 0.24) 0 22%, transparent 22% 100%),
+    linear-gradient(180deg, rgba(4, 2, 18, 0.08), rgba(4, 2, 18, 0.28) 58%, rgba(4, 2, 18, 0.82)),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.07) 0 1px, transparent 1px 54px),
+    linear-gradient(180deg, #101226, #23153e 48%, #070511);
   opacity: 1;
   pointer-events: auto;
   transition: opacity 180ms ease, visibility 180ms ease;
@@ -288,14 +291,21 @@ canvas {
   touch-action: manipulation;
 }
 
-.hero-avatar img {
+.hero-symbol {
   width: 58px;
   height: 58px;
-  display: block;
+  display: grid;
+  place-items: center;
   border-radius: 7px;
-  object-fit: cover;
-  object-position: center 18%;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--unit-color) 88%, white 12%), var(--unit-accent)),
+    var(--unit-color);
   border: 2px solid rgba(245, 243, 232, 0.28);
+  color: #fff9dc;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.36);
 }
 
 .hero-avatar small {
@@ -319,7 +329,7 @@ canvas {
   filter: saturate(0.55);
 }
 
-.hero-avatar.sleeping img {
+.hero-avatar.sleeping .hero-symbol {
   filter: grayscale(1) brightness(0.66);
 }
 
@@ -383,8 +393,8 @@ canvas {
   width: 38px;
   height: 38px;
   border-radius: 6px;
-  object-fit: cover;
   border: 1px solid rgba(255, 255, 255, 0.18);
+  font-size: 19px;
 }
 
 .hero-card__details {
@@ -619,9 +629,10 @@ canvas {
 @media (max-width: 560px) {
   .intro-screen {
     background:
-      radial-gradient(circle at 50% 12%, rgba(107, 64, 217, 0.34), transparent 34%),
-      linear-gradient(180deg, rgba(4, 2, 18, 0.02), rgba(4, 2, 18, 0.1) 72%, rgba(4, 2, 18, 0.66)),
-      url("assets/intro.png") center / auto 100svh no-repeat,
+      linear-gradient(145deg, rgba(104, 199, 223, 0.3) 0 24%, transparent 24% 100%),
+      linear-gradient(225deg, rgba(238, 125, 69, 0.22) 0 26%, transparent 26% 100%),
+      linear-gradient(180deg, rgba(4, 2, 18, 0.02), rgba(4, 2, 18, 0.12) 72%, rgba(4, 2, 18, 0.72)),
+      repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.07) 0 1px, transparent 1px 42px),
       linear-gradient(180deg, #060214, #12072a 48%, #05020d);
     padding: max(12px, env(safe-area-inset-top)) 12px max(22px, env(safe-area-inset-bottom));
   }

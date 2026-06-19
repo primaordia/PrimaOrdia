@@ -34,6 +34,7 @@ const heroVisualScale = 1.35;
 const missionDuration = 90;
 const heroUpkeepCost = 10;
 const heroReviveCost = 50;
+const earlyReviveCostPerSecond = 20;
 const heroSleepDuration = 10;
 const sausageRainRadius = 2.66;
 const campRewards = [25, 50, 100];
@@ -130,6 +131,7 @@ const audioAssets = {
   paladinAttack: new Audio("assets/audio/paladin-attack.mp3"),
   enemyAttack: new Audio("assets/audio/enemy-attack.mp3"),
   frankDoinkOww: new Audio("assets/audio/frank-doink-oww.mp3"),
+  leelaCryingGirl: new Audio("assets/audio/leela-crying-girl.mp3"),
   backgroundMusic: new Audio("assets/audio/background-music-1.mp3")
 };
 let backgroundMusicPrepared = false;
@@ -147,8 +149,6 @@ const heroTemplates = [
     speed: 5.25,
     role: "Star Fairy",
     archetype: "guardian",
-    portrait: "assets/heroes/leela.png",
-    faceTexture: "assets/heroes/leela-face.png",
     abilities: ["Fairy Dust", "Wing Dash", "Sparkly Heal"]
   },
   {
@@ -163,8 +163,6 @@ const heroTemplates = [
     speed: 5.7,
     role: "Berry Phoenix",
     archetype: "mystic",
-    portrait: "assets/heroes/feenix.png",
-    faceTexture: "assets/heroes/feenix-face.png",
     abilities: ["Solar Burst", "Berry Shield", "Stinky Breath"]
   },
   {
@@ -178,8 +176,6 @@ const heroTemplates = [
     speed: 6.35,
     role: "Void Ranger",
     archetype: "ranger",
-    portrait: "assets/heroes/poliana.png",
-    faceTexture: "assets/heroes/poliana-face.png",
     range: 9,
     abilities: ["Void Barrage", "Shadow Step", "Sausage Party"]
   },
@@ -195,7 +191,6 @@ const heroTemplates = [
     speed: 5.1,
     role: "Space Paladin",
     archetype: "paladin",
-    portrait: "assets/heroes/frank.png",
     abilities: ["Inner Light", "Space Fart", "Selfless Belch"]
   }
 ];
@@ -1241,7 +1236,7 @@ function buildFeenixModel(group, data) {
   head.scale.set(1, 1.05, 0.95);
   head.castShadow = true;
   group.add(head);
-  addImageFace(group, data, { width: 0.82, height: 0.66, y: 2.08, radius: 0.58 });
+  addSculptedFace(group, data);
   addFeenixDetails(group, { orangeMat, goldMat, creamMat, metalMat, darkMetalMat, leafMat, seedMat });
 }
 
@@ -1904,10 +1899,6 @@ function wakeHero(hero, automatic = false) {
 function payHeroUpkeep(heroId) {
   const hero = heroes(true).find((candidate) => candidate.id === heroId);
   if (!hero || !hero.asleep) return;
-  if (hero.sleepReason === "revive" && hero.reviveTimer > 0) {
-    log(`${hero.name} can be revived in ${Math.ceil(hero.reviveTimer)} seconds.`);
-    return;
-  }
   const cost = wakeCost(hero);
   if (gold < cost) {
     log(`${hero.name} needs ${cost} gold to wake up.`);
@@ -1915,18 +1906,23 @@ function payHeroUpkeep(heroId) {
   }
   gold -= cost;
   goldRoll(hero.mesh.position, `-${cost}G`);
+  const isRevive = hero.sleepReason === "revive" || hero.hp <= 0 || hero.reviveTimer > 0;
   if (hero.hp <= 0) {
     hero.hp = Math.ceil(hero.maxHp * 0.65);
     hero.reviveTimer = 0;
     if (hero.healthBar) hero.healthBar.group.visible = true;
   }
   wakeHero(hero, true);
-  log(`${hero.name} woke up for ${cost} gold.`);
+  const action = isRevive ? "revived" : "woke up";
+  log(`${hero.name} ${action} for ${cost} gold.`);
   syncUi();
 }
 
 function wakeCost(hero) {
-  return hero.sleepReason === "revive" || hero.hp <= 0 || hero.reviveTimer > 0 ? heroReviveCost : heroUpkeepCost;
+  if (hero.sleepReason === "revive" || hero.hp <= 0 || hero.reviveTimer > 0) {
+    return heroReviveCost + Math.ceil(Math.max(0, hero.reviveTimer)) * earlyReviveCostPerSecond;
+  }
+  return heroUpkeepCost;
 }
 
 function spawnEnemyGroup(count, announce = false) {
@@ -1977,13 +1973,13 @@ function dropMedkits() {
 
   positions.forEach((position, index) => {
     const pickup = index < 3
-      ? createMedkit(`medkit-${wave}-${Date.now()}-${index}`, position)
+      ? createThoriumPickup(`thorium-${wave}-${Date.now()}-${index}`, position)
       : createMeatPickup(`meat-${wave}-${Date.now()}-${index}`, position);
     medkits.push(pickup);
     scene.add(pickup.mesh);
   });
   medkitSpawnTimer = 15;
-  log("Space candies and Bubblenium appeared.");
+  log("Thorium and Bubblenium appeared.");
 }
 
 function randomFieldPositions(count, minDistance) {
@@ -2008,54 +2004,45 @@ function randomFieldPositions(count, minDistance) {
   return positions;
 }
 
-function createMedkit(id, position) {
+function createThoriumPickup(id, position) {
   const group = new THREE.Group();
-  const wrapperMat = new THREE.MeshStandardMaterial({ color: 0x714de8, roughness: 0.42, metalness: 0.08 });
-  const stripeMat = new THREE.MeshStandardMaterial({ color: 0x52d6ff, roughness: 0.38, metalness: 0.12 });
-  const candyMat = new THREE.MeshStandardMaterial({ color: 0xffe66d, roughness: 0.42, metalness: 0.04 });
-  const endMat = new THREE.MeshStandardMaterial({ color: 0xe9f6ff, roughness: 0.45, metalness: 0.06 });
+  const oreMat = new THREE.MeshStandardMaterial({ color: 0x1f9fff, roughness: 0.2, metalness: 0.82, emissive: 0x0d6eff, emissiveIntensity: 0.28 });
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xf6c747, roughness: 0.25, metalness: 0.72, emissive: 0xb97918, emissiveIntensity: 0.18 });
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0x69d8ff, transparent: true, opacity: 0.46 });
 
-  const wrapper = new THREE.Mesh(new THREE.BoxGeometry(1.12, 0.34, 0.48), wrapperMat);
-  wrapper.position.y = 0.38;
-  wrapper.castShadow = true;
-  group.add(wrapper);
+  const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.48, 1), oreMat);
+  core.position.y = 0.5;
+  core.scale.set(1.1, 0.92, 1);
+  core.rotation.set(0.2, 0.35, -0.18);
+  core.castShadow = true;
+  group.add(core);
 
-  [-0.46, 0.46].forEach((x) => {
-    const twist = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.3, 4), endMat);
-    twist.position.set(x, 0.38, 0);
-    twist.rotation.z = x < 0 ? Math.PI / 2 : -Math.PI / 2;
-    twist.castShadow = true;
-    group.add(twist);
+  [0, (Math.PI * 2) / 3, (Math.PI * 4) / 3].forEach((angle) => {
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.52, 0.035, 8, 28), goldMat);
+    band.position.y = 0.5;
+    band.rotation.set(Math.PI / 2, 0.35, angle);
+    band.castShadow = true;
+    group.add(band);
   });
 
-  [-0.24, 0.24].forEach((x) => {
-    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 0.54), stripeMat);
-    stripe.position.set(x, 0.57, 0);
-    stripe.rotation.y = 0.18;
-    stripe.castShadow = true;
-    group.add(stripe);
-  });
-
-  const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.12), candyMat);
-  star.position.set(0, 0.61, 0.01);
-  star.rotation.set(0.4, 0.3, 0.1);
-  star.castShadow = true;
-  group.add(star);
+  const glow = new THREE.Mesh(new THREE.SphereGeometry(0.62, 18, 12), glowMat);
+  glow.position.y = 0.5;
+  group.add(glow);
 
   const highlight = new THREE.Mesh(
-    new THREE.BoxGeometry(1.28, 0.56, 0.72),
-    new THREE.MeshBasicMaterial({ color: 0x63d463, transparent: true, opacity: 0.18, wireframe: true, depthTest: false })
+    new THREE.BoxGeometry(1.32, 1.14, 1.32),
+    new THREE.MeshBasicMaterial({ color: 0x55caff, transparent: true, opacity: 0.22, wireframe: true, depthTest: false })
   );
-  highlight.position.y = 0.38;
+  highlight.position.y = 0.5;
   highlight.visible = false;
   group.add(highlight);
 
   group.position.copy(position);
-  group.userData.type = "medkit";
+  group.userData.type = "thorium";
   group.traverse((child) => {
     child.userData.medkitId = id;
   });
-  return { id, type: "medkit", label: "Space Candy", mesh: group, highlight, heal: 50, bob: Math.random() * Math.PI * 2, ttl: 15 };
+  return { id, type: "thorium", label: "Thorium", mesh: group, highlight, heal: 50, bob: Math.random() * Math.PI * 2, ttl: 15 };
 }
 
 function createMeatPickup(id, position) {
@@ -2126,7 +2113,7 @@ function updateMedkits(dt) {
 
     const hero = heroes().find((candidate) => (
       candidate.mesh.position.distanceTo(kit.mesh.position) < 1.25
-      && (kit.type === "meat" || candidate.hp < candidate.maxHp)
+      && (kit.type === "meat" || kit.type === "thorium" || candidate.hp < candidate.maxHp)
     ));
     if (!hero) return true;
 
@@ -2152,7 +2139,7 @@ function updateMedkits(dt) {
       hero.spaceCandyHealAmount = kit.heal / 3;
       healingBubbles(hero.mesh.position);
       awardHeroXp(hero, 10);
-      log(`${hero.name} ate a Space Candy.`);
+      log(`${hero.name} collected Thorium.`);
     }
     flash(hero.mesh.position, 0x63d463);
     scene.remove(kit.mesh);
@@ -2517,8 +2504,8 @@ function damage(attacker, defender) {
     if (attacker.side === "enemy" && actualDefender.side === "camp") {
       applyCampDamageGoldLoss(actualDefender, beforeHp);
     }
-    if (attacker.side === "enemy" && actualDefender.id === "frank" && actualDefender.hp > 0) {
-      trackFrankEnemyHit(actualDefender);
+    if (attacker.side === "enemy" && actualDefender.hp > 0) {
+      trackHeroEnemyHit(actualDefender);
     }
   }
   flash(actualDefender.mesh.position, attacker.side === "hero" ? 0x9be7f5 : 0xe76d55);
@@ -2538,10 +2525,12 @@ function selflessShieldTarget(defender) {
   return owner ?? null;
 }
 
-function trackFrankEnemyHit(frank) {
-  frank.frankEnemyHitCount = (frank.frankEnemyHitCount ?? 0) + 1;
-  if (frank.frankEnemyHitCount % 10 !== 0) return;
-  playAudioAsset(audioAssets.frankDoinkOww, null, 1.6);
+function trackHeroEnemyHit(hero) {
+  if (hero.id !== "frank" && hero.id !== "leela") return;
+  hero.enemyHitSoundCount = (hero.enemyHitSoundCount ?? 0) + 1;
+  if (hero.enemyHitSoundCount % 10 !== 0) return;
+  const sound = hero.id === "leela" ? audioAssets.leelaCryingGirl : audioAssets.frankDoinkOww;
+  playAudioAsset(sound, null, 1.6);
 }
 
 function effectiveAtk(unit) {
@@ -2941,7 +2930,7 @@ function updateUpkeepWidgets(dt) {
     hero.sleepUi.zSprite.position.x = Math.sin(hero.sleepBob * 1.7) * 0.18;
     hero.sleepUi.zSprite.position.y = 0.76 + Math.sin(hero.sleepBob * 1.2) * 0.08;
     if (hero.sleepReason === "revive") {
-      const countdownText = hero.reviveTimer > 0 ? `${Math.ceil(hero.reviveTimer)}s` : `${heroReviveCost}G`;
+      const countdownText = `${wakeCost(hero)}G`;
       hero.sleepUi.countdownSprite.visible = true;
       if (hero.sleepUi.lastCountdownText !== countdownText) {
         updateSleepCountdownTexture(hero.sleepUi, countdownText);
@@ -4555,6 +4544,12 @@ function setMarkerOpacity(marker, opacity) {
   });
 }
 
+function heroTokenHtml(unit, className = "hero-symbol") {
+  const color = `#${unit.color.toString(16).padStart(6, "0")}`;
+  const accent = `#${unit.accent.toString(16).padStart(6, "0")}`;
+  return `<span class="${className}" style="--unit-color:${color};--unit-accent:${accent}">${unit.name[0]}</span>`;
+}
+
 function syncUi() {
   scoreEl.textContent = `Score: ${scoreTotal()}`;
   goldEl.textContent = `Gold: ${gold}`;
@@ -4622,7 +4617,7 @@ function syncUi() {
     avatar.className = `hero-avatar ${selectedId === unit.id ? "active" : ""} ${sleeping ? "sleeping" : ""}`;
     avatar.setAttribute("aria-label", `Select ${unit.name}`);
     avatar.innerHTML = `
-      ${unit.portrait ? `<img src="${unit.portrait}" alt="${unit.name}">` : `<span>${unit.name[0]}</span>`}
+      ${heroTokenHtml(unit)}
       ${sleeping ? `<span class="sleep-mark">ZZZ</span>` : ""}
       <small>${unit.name}</small>
     `;
@@ -4636,7 +4631,7 @@ function syncUi() {
     card.type = "button";
     card.className = `hero-card ${selectedId === unit.id ? "active" : ""} ${sleeping ? "sleeping" : ""}`;
     card.innerHTML = `
-      ${unit.portrait ? `<img class="hero-card__portrait" src="${unit.portrait}" alt="${unit.name}">` : ""}
+      ${heroTokenHtml(unit, "hero-card__portrait hero-symbol")}
       <span class="hero-card__details">
         <strong>${heroDisplayName(unit)}</strong>
         <small>${sleeping ? "Sleeping | " : ""}${heroMiniStatsHtml(unit)}</small>
