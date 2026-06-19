@@ -1893,6 +1893,10 @@ function wakeHero(hero, automatic = false) {
 function payHeroUpkeep(heroId) {
   const hero = heroes(true).find((candidate) => candidate.id === heroId);
   if (!hero || !hero.asleep) return;
+  if (hero.sleepReason === "revive" && hero.reviveTimer > 0) {
+    log(`${hero.name} can be revived in ${Math.ceil(hero.reviveTimer)} seconds.`);
+    return;
+  }
   const cost = wakeCost(hero);
   if (gold < cost) {
     log(`${hero.name} needs ${cost} gold to wake up.`);
@@ -2226,6 +2230,7 @@ function updateHeroBuffs(dt) {
 
     if (hero.wingDashTimer > 0) {
       hero.wingDashTimer = Math.max(0, hero.wingDashTimer - dt);
+      damageEnemiesNearWingDash(hero);
       if (hero.wingDashTimer === 0) hero.wingDashHitIds.clear();
     }
 
@@ -2245,6 +2250,10 @@ function updateHeroBuffs(dt) {
 
 function updateStatusEffects(dt) {
   units.forEach((unit) => {
+    if (unit.sausageStunTimer > 0) {
+      unit.sausageStunTimer = Math.max(0, unit.sausageStunTimer - dt);
+    }
+
     if (unit.shieldTimer > 0) {
       unit.shieldTimer = Math.max(0, unit.shieldTimer - dt);
       if (unit.shieldTimer === 0) {
@@ -2284,6 +2293,7 @@ function updateStatusEffects(dt) {
 
     if (unit.sausageRainTimer > 0) {
       unit.sausageRainTimer = Math.max(0, unit.sausageRainTimer - dt);
+      unit.sausageStunTimer = Math.max(unit.sausageStunTimer ?? 0, unit.sausageRainTimer);
       unit.sausageRainTickTimer -= dt;
       unit.sausageRainVisualTimer -= dt;
       if (unit.sausageRainTickTimer <= 0) {
@@ -2342,17 +2352,8 @@ function updateRevives(dt) {
     hero.reviveTimer = Math.max(0, hero.reviveTimer - dt);
     if (hero.reviveTimer > 0) return;
 
-    hero.hp = Math.ceil(hero.maxHp * 0.65);
-    hero.asleep = false;
-    hero.mesh.rotation.x = 0;
-    hero.mesh.visible = true;
-    if (hero.healthBar) hero.healthBar.group.visible = true;
-    if (hero.sleepUi) hero.sleepUi.group.visible = false;
-    hero.target = null;
-    hero.targetPoint.copy(hero.mesh.position);
-    flash(hero.mesh.position, 0x63d463);
-    healingBubbles(hero.mesh.position);
-    log(`${hero.name} revived.`);
+    hero.reviveTimer = 0;
+    if (hero.sleepUi) hero.sleepUi.group.visible = true;
   });
 }
 
@@ -2387,6 +2388,7 @@ function updateUnit(unit, dt) {
   if (unit.hp <= 0 || unit.asleep) return;
   unit.cooldown = Math.max(0, unit.cooldown - dt);
   if (unit.side === "camp") return;
+  if (unit.side === "enemy" && unit.sausageStunTimer > 0) return;
   const foes = unit.side === "hero" ? enemies() : defenders();
   const directTarget = units.find((candidate) => candidate.id === unit.target && candidate.hp > 0);
   const target = directTarget ?? nearest(unit, foes);
@@ -2479,10 +2481,14 @@ function damage(attacker, defender) {
   if (attacker.side === "hero" && actualDefender.side === "enemy") {
     damageEnemy(attacker, actualDefender, amount);
   } else {
+    const beforeHp = actualDefender.hp;
     actualDefender.hp -= amount;
     if (attacker.side === "enemy" && actualDefender.side === "camp" && !actualDefender.underAttackNotified) {
       actualDefender.underAttackNotified = true;
-      log("A friendly camp is under attack!");
+      log("A camp is under attack!");
+    }
+    if (attacker.side === "enemy" && actualDefender.side === "camp") {
+      applyCampDamageGoldLoss(actualDefender, beforeHp);
     }
   }
   flash(actualDefender.mesh.position, attacker.side === "hero" ? 0x9be7f5 : 0xe76d55);
@@ -2522,8 +2528,23 @@ function damageEnemy(source, enemy, amount) {
   const hero = typeof source === "string"
     ? units.find((unit) => unit.id === source && unit.side === "hero")
     : source;
-  if (dealt > 0 && hero?.side === "hero") awardHeroXp(hero, dealt * 0.05);
+  if (dealt > 0 && hero?.side === "hero") {
+    heroDamageScore += Math.round(dealt);
+    awardHeroXp(hero, dealt * 0.05);
+  }
   return dealt;
+}
+
+function applyCampDamageGoldLoss(camp, beforeHp) {
+  const beforeLost = Math.floor((camp.maxHp - Math.max(0, beforeHp)) / 50);
+  const afterLost = Math.floor((camp.maxHp - Math.max(0, camp.hp)) / 50);
+  const ticks = Math.max(0, afterLost - Math.max(beforeLost, camp.campDamageGoldTicks ?? 0));
+  if (ticks <= 0) return;
+  camp.campDamageGoldTicks = Math.max(afterLost, camp.campDamageGoldTicks ?? 0);
+  const loss = ticks * 10;
+  gold = Math.max(0, gold - loss);
+  goldRoll(camp.mesh.position, `-${loss}G`);
+  log("A camp is under attack!");
 }
 
 function awardHeroXp(hero, amount) {
@@ -2532,6 +2553,7 @@ function awardHeroXp(hero, amount) {
   if (xpGain <= 0) return;
   xpRoll(hero.mesh.position, `+${formatXpGain(xpGain)}XP`);
   hero.xp = (hero.xp ?? 0) + xpGain;
+  hero.totalXp = (hero.totalXp ?? 0) + xpGain;
   hero.xpToNext = hero.xpToNext ?? xpForNextLevel(hero.level);
   while (hero.xp >= hero.xpToNext) {
     hero.xp -= hero.xpToNext;
@@ -2578,6 +2600,16 @@ function damageEnemiesInDashPath(hero, start, end) {
   enemies().forEach((enemy) => {
     if (hero.wingDashHitIds.has(enemy.id)) return;
     if (distancePointToSegment(enemy.mesh.position, start, end) > 0.82) return;
+    damageEnemy(hero, enemy, scaledAbilityDamage(35));
+    hero.wingDashHitIds.add(enemy.id);
+    flash(enemy.mesh.position, 0x9be7f5);
+  });
+}
+
+function damageEnemiesNearWingDash(hero) {
+  enemies().forEach((enemy) => {
+    if (hero.wingDashHitIds.has(enemy.id)) return;
+    if (enemy.mesh.position.distanceTo(hero.mesh.position) > 2) return;
     damageEnemy(hero, enemy, scaledAbilityDamage(35));
     hero.wingDashHitIds.add(enemy.id);
     flash(enemy.mesh.position, 0x9be7f5);
@@ -2637,15 +2669,27 @@ function removeDeadUnits() {
     if (unit.hp > 0) return true;
     if (unit.side === "hero") {
       if (unit.reviveTimer <= 0) {
+        scoreAdjustments -= 50;
         unit.reviveTimer = heroSleepDuration;
         unit.hp = 0;
-        unit.asleep = false;
         putHeroToSleep(unit, "revive");
         unit.mesh.visible = true;
         if (unit.healthBar) unit.healthBar.group.visible = true;
-        log(`${unit.name} will revive in ${heroSleepDuration} seconds.`);
+        log(`${unit.name} needs 50G to revive after ${heroSleepDuration} seconds.`);
       }
       return true;
+    }
+    if (unit.side === "camp") {
+      if (!unit.destroyed) {
+        unit.destroyed = true;
+        scoreAdjustments -= 100;
+        gold = Math.max(0, gold - unit.reward);
+        goldRoll(unit.mesh.position, `-${unit.reward}G`);
+        log("A friendly camp was destroyed!");
+      }
+      scene.remove(unit.mesh);
+      if (unit.healthBar) scene.remove(unit.healthBar.group);
+      return false;
     }
     scene.remove(unit.mesh);
     if (unit.healthBar) scene.remove(unit.healthBar.group);
@@ -3062,6 +3106,11 @@ function handleBattlefieldTap(event) {
   const hitUnit = unitFromPointerEvent(event);
   if (hitUnit) {
     if (hitUnit.side === "enemy" && castTargetedAbilityAt(hitUnit.mesh.position)) return;
+    if (hitUnit.side === "camp") {
+      selectUnit(hitUnit.id);
+      showNamePopup(hitUnit);
+      return;
+    }
     if (hitUnit.side === "hero") {
       if (hitUnit.asleep) {
         selectHero(hitUnit.id);
@@ -3140,10 +3189,14 @@ function payButtonFromPointerEvent(event) {
 
 
 function selectHero(id) {
+  selectUnit(id);
+}
+
+function selectUnit(id) {
   selectedId = id;
-  const hero = selectedHero();
-  if (!hero) return;
-  log(`${hero.name} selected.`);
+  const unit = selectedUnit();
+  if (!unit) return;
+  log(`${unit.name} selected.`);
   syncUi();
 }
 
@@ -4467,15 +4520,17 @@ function setMarkerOpacity(marker, opacity) {
 }
 
 function syncUi() {
-  goldEl.textContent = `Gold ${gold}`;
+  scoreEl.textContent = `Score: ${scoreTotal()}`;
+  goldEl.textContent = `Gold: ${gold}`;
   waveEl.textContent = missionPending ? `Mission ${wave + 1} in ${Math.ceil(missionCountdown)}s` : `Mission ${wave} ${formatTime(missionTimer)}`;
   const countdown = state === "lost" ? restartCountdown : missionCountdown;
   const showCountdown = state === "lost" || missionPending;
   countdownOverlayEl.textContent = showCountdown ? Math.ceil(countdown) : "";
   countdownOverlayEl.classList.toggle("show", showCountdown);
 
-  const hero = selectedHero();
-  const selectedCamp = selectedUnit()?.side === "camp" ? selectedUnit() : null;
+  const selected = selectedUnit();
+  const selectedCamp = selected?.side === "camp" ? selected : null;
+  const hero = selected?.side === "hero" ? selected : selectedHero();
   selectedNameEl.innerHTML = selectedCamp
     ? campStatsHtml(selectedCamp)
     : hero ? `${heroDisplayName(hero)} | ${heroStatsHtml(hero)}` : "Choose a hero";
@@ -4485,7 +4540,20 @@ function syncUi() {
   musicBtn.innerHTML = `Music <span class="music-note ${musicEnabled ? "" : "muted"}" aria-hidden="true">♪</span>`;
   musicBtn.setAttribute("aria-pressed", String(musicEnabled));
   abilitiesPanelEl.innerHTML = "";
-  if (hero) {
+  if (selectedCamp) {
+    campBuffs.forEach((buff) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `ability-btn ${gold >= buff.cost ? "ready" : ""}`;
+      button.innerHTML = `<span class="ability-label">${buff.name} ${buff.cost}G</span>`;
+      button.disabled = state !== "playing" || gold < buff.cost;
+      button.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        buyCampBuff(selectedCamp.id, buff.name);
+      });
+      abilitiesPanelEl.appendChild(button);
+    });
+  } else if (hero) {
     hero.abilities.forEach((ability) => {
       const button = document.createElement("button");
       button.type = "button";
@@ -4557,6 +4625,44 @@ function updateNotificationPosition() {
 
 function sortedHeroesForHud() {
   return heroes(true).slice().sort((a, b) => (heroStartSlots[a.id] ?? 99) - (heroStartSlots[b.id] ?? 99));
+}
+
+function buyCampBuff(campId, buffName) {
+  const camp = camps().find((unit) => unit.id === campId);
+  const buff = campBuffs.find((candidate) => candidate.name === buffName);
+  if (!camp || !buff) return;
+  if (gold < buff.cost) {
+    log(`${buff.name} needs ${buff.cost}G.`);
+    return;
+  }
+  gold -= buff.cost;
+  goldRoll(camp.mesh.position, `-${buff.cost}G`);
+  if (buffName === "Heal Team") {
+    heroes().forEach((hero) => {
+      healUnit(hero, 60);
+      healingBubbles(hero.mesh.position);
+    });
+  } else if (buffName === "Attack Boost") {
+    heroes().forEach((hero) => {
+      hero.atkBuffMultiplier = Math.max(hero.atkBuffMultiplier ?? 1, 1.35);
+      hero.atkBuffTimer = Math.max(hero.atkBuffTimer ?? 0, 8);
+      sparklyHealBurst(hero.mesh.position);
+    });
+  } else if (buffName === "Defense Boost") {
+    heroes().forEach((hero) => {
+      hero.shieldDefBonus = Math.max(hero.shieldDefBonus ?? 0, 5);
+      hero.shieldTimer = Math.max(hero.shieldTimer ?? 0, 8);
+      goldShieldAura(hero, 8);
+    });
+  }
+  flash(camp.mesh.position, 0xf1d34f);
+  log(`${buff.name} purchased at Friendly Camp.`);
+  syncUi();
+}
+
+function scoreTotal() {
+  const totalHeroXp = heroes(true).reduce((sum, hero) => sum + (hero.totalXp ?? 0), 0);
+  return Math.max(0, Math.round(totalHeroXp + heroDamageScore + scoreAdjustments));
 }
 
 function heroDisplayName(hero) {
@@ -4639,6 +4745,10 @@ function defenders() {
 function selectedHero(includeDowned = false) {
   const roster = heroes(includeDowned);
   return roster.find((unit) => unit.id === selectedId) ?? roster[0];
+}
+
+function selectedUnit() {
+  return units.find((unit) => unit.id === selectedId && (unit.hp > 0 || unit.asleep || unit.side === "hero")) ?? null;
 }
 
 function nearest(unit, candidates) {
