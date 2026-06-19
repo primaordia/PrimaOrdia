@@ -129,6 +129,7 @@ const audioAssets = {
   starFairyAttack: new Audio("assets/audio/star-fairy-attack.mp3"),
   paladinAttack: new Audio("assets/audio/paladin-attack.mp3"),
   enemyAttack: new Audio("assets/audio/enemy-attack.mp3"),
+  frankDoinkOww: new Audio("assets/audio/frank-doink-oww.mp3"),
   backgroundMusic: new Audio("assets/audio/background-music-1.mp3")
 };
 let backgroundMusicPrepared = false;
@@ -1666,6 +1667,7 @@ function createUnit(data) {
     asleep: false,
     sleepReason: null,
     sleepBob: Math.random() * Math.PI * 2,
+    frankEnemyHitCount: 0,
     upkeepPaidMission: data.side === "hero" ? 1 : 0,
     sleepUi: null,
     shieldDefBonus: 0,
@@ -2515,6 +2517,9 @@ function damage(attacker, defender) {
     if (attacker.side === "enemy" && actualDefender.side === "camp") {
       applyCampDamageGoldLoss(actualDefender, beforeHp);
     }
+    if (attacker.side === "enemy" && actualDefender.id === "frank" && actualDefender.hp > 0) {
+      trackFrankEnemyHit(actualDefender);
+    }
   }
   flash(actualDefender.mesh.position, attacker.side === "hero" ? 0x9be7f5 : 0xe76d55);
   if (actualDefender !== defender) {
@@ -2531,6 +2536,12 @@ function selflessShieldTarget(defender) {
   if (defender.side !== "hero" || defender.selflessShieldTimer <= 0 || !defender.selflessShieldOwnerId) return null;
   const owner = units.find((unit) => unit.id === defender.selflessShieldOwnerId && unit.hp > 0 && !unit.asleep);
   return owner ?? null;
+}
+
+function trackFrankEnemyHit(frank) {
+  frank.frankEnemyHitCount = (frank.frankEnemyHitCount ?? 0) + 1;
+  if (frank.frankEnemyHitCount % 10 !== 0) return;
+  playAudioAsset(audioAssets.frankDoinkOww);
 }
 
 function effectiveAtk(unit) {
