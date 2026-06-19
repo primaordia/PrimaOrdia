@@ -4011,7 +4011,7 @@ function syncUi() {
   const hero = selectedHero();
   selectedNameEl.textContent = hero ? `${heroDisplayName(hero)} | ${heroStatsHtml(hero)}` : "Choose a hero";
   selectedStatsEl.textContent = "";
-  soundBtn.textContent = soundEnabled ? "Sound On" : "Sound Off";
+  soundBtn.textContent = soundEnabled ? "Sound 🔊" : "Sound 🔇";
   soundBtn.setAttribute("aria-pressed", String(soundEnabled));
   abilitiesPanelEl.innerHTML = "";
   if (hero) {
@@ -4154,15 +4154,15 @@ function resize() {
   document.body.classList.toggle("portrait", isPortrait);
 
   if (isPortrait) {
-    camera.fov = 52;
-    camera.position.set(0, 34, 30);
-    camera.lookAt(0, 0, 1.5);
-    camera.setViewOffset(width, height, 0, Math.round(height * 0.16), width, height);
+    camera.fov = 57;
+    camera.position.set(0, 36, 32);
+    camera.lookAt(0, 0, 2.6);
+    camera.setViewOffset(width, height, 0, Math.round(height * 0.08), width, height);
   } else {
     camera.clearViewOffset();
-    camera.fov = 48;
-    camera.position.set(0, width < 700 ? 31 : 27, width < 700 ? 32 : 28);
-    camera.lookAt(0, 0, 0);
+    camera.fov = width < 700 ? 52 : 50;
+    camera.position.set(0, width < 700 ? 33 : 29, width < 700 ? 33 : 30);
+    camera.lookAt(0, 0, 1.2);
   }
 
   camera.updateProjectionMatrix();
