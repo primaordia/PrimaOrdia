@@ -142,7 +142,7 @@ const heroTemplates = [
     hp: 155,
     atk: 14,
     def: 1,
-    range: 4,
+    range: 7,
     speed: 5.25,
     role: "Star Fairy",
     archetype: "guardian",
@@ -158,7 +158,7 @@ const heroTemplates = [
     hp: 105,
     atk: 22,
     def: 1,
-    range: 2,
+    range: 5,
     speed: 5.7,
     role: "Berry Phoenix",
     archetype: "mystic",
@@ -179,7 +179,7 @@ const heroTemplates = [
     archetype: "ranger",
     portrait: "assets/heroes/poliana.png",
     faceTexture: "assets/heroes/poliana-face.png",
-    range: 6,
+    range: 9,
     abilities: ["Void Barrage", "Shadow Step", "Sausage Party"]
   },
   {
@@ -1743,7 +1743,7 @@ function createHealthBar(unitId, side) {
   group.add(sprite);
   group.userData.unitId = unitId;
 
-  return { group, canvas, context, texture, lastRatio: -1, lastColor: null };
+  return { group, canvas, context, texture, side, lastRatio: -1, lastColor: null };
 }
 
 function updateHealthBars() {
@@ -1769,6 +1769,15 @@ function drawHealthBar(bar, ratio) {
   const width = canvas.width;
   const height = canvas.height;
   context.clearRect(0, 0, width, height);
+  if (bar.side === "enemy") {
+    context.shadowColor = "rgba(255, 57, 57, 0.95)";
+    context.shadowBlur = 14;
+    context.strokeStyle = "rgba(255, 57, 57, 0.95)";
+    context.lineWidth = 8;
+    roundRect(context, 3, 7, width - 6, height - 14, 16);
+    context.stroke();
+    context.shadowBlur = 0;
+  }
   context.fillStyle = "rgba(5, 7, 5, 0.94)";
   roundRect(context, 0, 4, width, height - 8, 16);
   context.fill();
@@ -1800,7 +1809,7 @@ function spawnWave() {
   medkitSpawnTimer = 0;
   spawnFriendlyCamps();
   applyMissionUpkeep();
-  spawnEnemyGroup((3 + Math.min(5, wave)) * 2, true);
+  spawnEnemyGroup(scaledEnemyCount(3 + Math.min(5, wave)), true);
   spawnTimer = 9;
   log("Protect the friendly camps!");
 }
@@ -1948,6 +1957,10 @@ function spawnEnemyGroup(count, announce = false) {
   } else {
     log("Enemy reinforcements arrived.");
   }
+}
+
+function scaledEnemyCount(baseCount) {
+  return Math.max(1, Math.ceil(baseCount * 1.5));
 }
 
 function clearMedkits() {
@@ -2178,7 +2191,7 @@ function update(dt) {
     }
     spawnTimer -= dt;
     if (spawnTimer <= 0) {
-      spawnEnemyGroup((2 + Math.min(4, Math.floor(wave / 2))) * 2);
+      spawnEnemyGroup(scaledEnemyCount(2 + Math.min(4, Math.floor(wave / 2))));
       spawnTimer = Math.max(5.5, 11 - wave * 0.35);
     }
   }
@@ -2348,12 +2361,24 @@ function updateStatusEffects(dt) {
 
 function updateRevives(dt) {
   heroes(true).forEach((hero) => {
-    if (hero.hp > 0 || hero.reviveTimer <= 0) return;
-    hero.reviveTimer = Math.max(0, hero.reviveTimer - dt);
-    if (hero.reviveTimer > 0) return;
+    if (hero.hp > 0 || hero.sleepReason !== "revive") return;
+    if (hero.reviveTimer > 0) {
+      hero.reviveTimer = Math.max(0, hero.reviveTimer - dt);
+      if (hero.reviveTimer > 0) return;
+    }
 
+    if (gold < heroReviveCost) {
+      hero.reviveTimer = 0;
+      if (hero.sleepUi) hero.sleepUi.group.visible = true;
+      return;
+    }
+    gold -= heroReviveCost;
+    goldRoll(hero.mesh.position, `-${heroReviveCost}G`);
+    hero.hp = Math.ceil(hero.maxHp * 0.65);
     hero.reviveTimer = 0;
-    if (hero.sleepUi) hero.sleepUi.group.visible = true;
+    if (hero.healthBar) hero.healthBar.group.visible = true;
+    wakeHero(hero, true);
+    log(`${hero.name} revived for ${heroReviveCost}G.`);
   });
 }
 
@@ -2896,7 +2921,7 @@ function updateUpkeepWidgets(dt) {
   heroes(true).forEach((hero) => {
     if (!hero.sleepUi) return;
     hero.sleepBob += dt * 2.8;
-    const visible = hero.asleep && hero.mesh.visible && (hero.hp > 0 || hero.reviveTimer > 0);
+    const visible = hero.asleep && hero.mesh.visible && (hero.hp > 0 || hero.sleepReason === "revive" || hero.reviveTimer > 0);
     hero.sleepUi.group.visible = visible;
     if (!visible) return;
     hero.sleepUi.group.position.copy(hero.mesh.position);
@@ -2905,7 +2930,7 @@ function updateUpkeepWidgets(dt) {
     hero.sleepUi.zSprite.position.x = Math.sin(hero.sleepBob * 1.7) * 0.18;
     hero.sleepUi.zSprite.position.y = 0.76 + Math.sin(hero.sleepBob * 1.2) * 0.08;
     if (hero.sleepReason === "revive") {
-      const countdownText = `${Math.ceil(hero.reviveTimer)}s`;
+      const countdownText = hero.reviveTimer > 0 ? `${Math.ceil(hero.reviveTimer)}s` : `${heroReviveCost}G`;
       hero.sleepUi.countdownSprite.visible = true;
       if (hero.sleepUi.lastCountdownText !== countdownText) {
         updateSleepCountdownTexture(hero.sleepUi, countdownText);
@@ -3446,12 +3471,10 @@ function castShadowStep(hero) {
 
 function castStinkyBreath(hero) {
   const primaryTarget = targetEnemy(hero) ?? nearest(hero, enemies());
-  if (!primaryTarget) {
-    log("No enemies for Stinky Breath.");
-    return false;
-  }
-  face(hero, primaryTarget.mesh.position);
-  const direction = primaryTarget.mesh.position.clone().sub(hero.mesh.position).setY(0).normalize();
+  if (primaryTarget) face(hero, primaryTarget.mesh.position);
+  const direction = primaryTarget
+    ? primaryTarget.mesh.position.clone().sub(hero.mesh.position).setY(0).normalize()
+    : new THREE.Vector3(Math.sin(hero.mesh.rotation.y), 0, Math.cos(hero.mesh.rotation.y)).normalize();
   const origin = hero.mesh.position.clone();
   let hits = 0;
 
@@ -3472,7 +3495,7 @@ function castStinkyBreath(hero) {
   flameBreath(hero);
   playEwwwSound();
   log(hits ? `${hero.name} used Stinky Breath.` : "Stinky Breath missed.");
-  return hits > 0;
+  return true;
 }
 
 function castSausageRain(hero) {
@@ -4664,7 +4687,7 @@ function buyCampBuff(campId, buffName) {
 
 function scoreTotal() {
   const totalHeroXp = heroes(true).reduce((sum, hero) => sum + (hero.totalXp ?? 0), 0);
-  return Math.max(0, Math.round(totalHeroXp + heroDamageScore + scoreAdjustments));
+  return Math.max(0, Math.round((totalHeroXp + heroDamageScore) / 10 + scoreAdjustments));
 }
 
 function heroDisplayName(hero) {
