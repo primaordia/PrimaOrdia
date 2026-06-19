@@ -9,10 +9,13 @@ const selectedNameEl = document.querySelector("#selectedName");
 const selectedStatsEl = document.querySelector("#selectedStats");
 const hudEl = document.querySelector(".hud");
 const logEl = document.querySelector("#log");
+const introScreenEl = document.querySelector("#introScreen");
+const startGameBtn = document.querySelector("#startGameBtn");
 const goldEl = document.querySelector("#gold");
 const waveEl = document.querySelector("#wave");
 const menuBtn = document.querySelector("#menuBtn");
 const actionMenuEl = document.querySelector("#actionMenu");
+const introBtn = document.querySelector("#introBtn");
 const soundBtn = document.querySelector("#soundBtn");
 const musicBtn = document.querySelector("#musicBtn");
 const rallyBtn = document.querySelector("#rallyBtn");
@@ -78,7 +81,8 @@ let missionTimer = missionDuration;
 let missionCountdown = 0;
 let missionPending = false;
 let medkitSpawnTimer = 0;
-let state = "playing";
+let state = "intro";
+let gameStarted = false;
 let units = [];
 let markers = [];
 let medkits = [];
@@ -187,8 +191,9 @@ const enemyTemplates = [
 ];
 
 init();
-resetGame();
+syncUi();
 animate();
+requestAnimationFrame(startBackgroundMusic);
 
 function init() {
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
@@ -231,6 +236,9 @@ function init() {
   menuBtn.addEventListener("click", toggleActionMenu);
   document.addEventListener("pointerdown", closeActionMenuFromPointer);
   document.addEventListener("pointerdown", startBackgroundMusic);
+  introScreenEl.addEventListener("pointerdown", startBackgroundMusic);
+  introBtn.addEventListener("click", showIntro);
+  startGameBtn.addEventListener("click", hideIntro);
   soundBtn.addEventListener("click", toggleSound);
   musicBtn.addEventListener("click", toggleMusic);
   rallyBtn.addEventListener("click", rallyHeroes);
@@ -294,6 +302,24 @@ function setActionMenuOpen(open) {
 function toggleActionMenu(event) {
   event.stopPropagation();
   setActionMenuOpen(!actionMenuOpen);
+}
+
+function showIntro() {
+  setActionMenuOpen(false);
+  introScreenEl.classList.remove("hidden");
+}
+
+function hideIntro() {
+  introScreenEl.classList.add("hidden");
+  if (!gameStarted) {
+    gameStarted = true;
+    resetGame();
+  }
+  startBackgroundMusic();
+}
+
+function introVisible() {
+  return !introScreenEl.classList.contains("hidden");
 }
 
 function toggleSound() {
@@ -1987,8 +2013,10 @@ function updateMedkits(dt) {
 
 function animate() {
   const dt = Math.min(0.05, clock.getDelta());
-  if (state === "playing") update(dt);
-  if (state === "lost") updateRestartCountdown(dt);
+  if (!introVisible()) {
+    if (state === "playing") update(dt);
+    if (state === "lost") updateRestartCountdown(dt);
+  }
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }

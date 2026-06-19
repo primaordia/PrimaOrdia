@@ -69,6 +69,42 @@ button:disabled {
   display: block;
 }
 
+.intro-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: end center;
+  padding: max(18px, env(safe-area-inset-top)) 18px max(34px, env(safe-area-inset-bottom));
+  background:
+    linear-gradient(180deg, rgba(4, 2, 18, 0.05), rgba(4, 2, 18, 0.34) 64%, rgba(4, 2, 18, 0.72)),
+    url("assets/intro.jpg") center / cover no-repeat;
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 180ms ease, visibility 180ms ease;
+}
+
+.intro-screen.hidden {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.start-game-btn {
+  min-width: min(320px, calc(100vw - 48px));
+  min-height: 58px;
+  border: 2px solid rgba(255, 236, 156, 0.86);
+  background:
+    radial-gradient(circle at 24% 22%, rgba(255, 255, 209, 0.38), transparent 34%),
+    linear-gradient(180deg, rgba(249, 201, 70, 0.98), rgba(132, 76, 20, 0.98));
+  color: #fff7c5;
+  font-size: 22px;
+  font-weight: 900;
+  text-transform: uppercase;
+  text-shadow: 0 2px 0 rgba(70, 36, 0, 0.72), 0 0 18px rgba(255, 235, 142, 0.42);
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.38), 0 0 24px rgba(255, 209, 80, 0.32);
+}
+
 .topbar,
 .hud {
   position: fixed;
