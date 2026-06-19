@@ -2599,7 +2599,7 @@ function moveTo(unit, point, dt) {
 function damageEnemiesInDashPath(hero, start, end) {
   enemies().forEach((enemy) => {
     if (hero.wingDashHitIds.has(enemy.id)) return;
-    if (distancePointToSegment(enemy.mesh.position, start, end) > 0.82) return;
+    if (distancePointToSegment(enemy.mesh.position, start, end) > 2) return;
     damageEnemy(hero, enemy, scaledAbilityDamage(35));
     hero.wingDashHitIds.add(enemy.id);
     flash(enemy.mesh.position, 0x9be7f5);
@@ -3316,12 +3316,13 @@ function castSolarBurst(hero) {
   enemies().forEach((enemy) => {
     const toEnemy = enemy.mesh.position.clone().sub(origin);
     const distance = toEnemy.length();
-    if (distance > 7.5) return;
+    if (distance > 10.5) return;
     toEnemy.y = 0;
     toEnemy.normalize();
     const dot = direction.dot(toEnemy);
     if (dot < Math.cos(Math.PI / 5)) return;
     damageEnemy(hero, enemy, scaledAbilityDamage(75));
+    enemy.sausageStunTimer = Math.max(enemy.sausageStunTimer ?? 0, 2);
     hits += 1;
     flash(enemy.mesh.position, 0xf6db55);
   });
@@ -3381,7 +3382,7 @@ function castTargetedAbilityAt(point) {
 }
 
 function castVoidBarrageAt(hero, point) {
-  const maxRange = 6;
+  const maxRange = 11;
   const impact = new THREE.Vector3(point.x, 0, point.z);
   const from = hero.mesh.position.clone().setY(0);
   const offset = impact.clone().sub(from);
@@ -3487,6 +3488,7 @@ function castSausageRain(hero) {
   const affected = foes.filter((enemy) => enemy.mesh.position.distanceTo(target.mesh.position) <= sausageRainRadius);
   affected.forEach((enemy) => {
     enemy.sausageRainTimer = 5;
+    enemy.sausageStunTimer = 5;
     enemy.sausageRainTickTimer = 1;
     enemy.sausageRainVisualTimer = 0;
     enemy.sausageRainSourceId = hero.id;

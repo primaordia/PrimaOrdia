@@ -581,6 +581,22 @@ canvas {
   font-weight: 900;
 }
 
+.hp-red {
+  color: #e8483f;
+}
+
+.hp-orange {
+  color: #f28a28;
+}
+
+.hp-yellow {
+  color: #f1d34f;
+}
+
+.hp-green {
+  color: #63d463;
+}
+
 .log {
   position: fixed;
   left: 50%;
