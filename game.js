@@ -13,6 +13,7 @@ const preIntroScreenEl = document.querySelector("#preIntroScreen");
 const preIntroBtn = document.querySelector("#preIntroBtn");
 const introScreenEl = document.querySelector("#introScreen");
 const startGameBtn = document.querySelector("#startGameBtn");
+const scoreEl = document.querySelector("#score");
 const goldEl = document.querySelector("#gold");
 const waveEl = document.querySelector("#wave");
 const menuBtn = document.querySelector("#menuBtn");
@@ -32,9 +33,18 @@ const faceTextures = new Map();
 const heroVisualScale = 1.35;
 const missionDuration = 90;
 const heroUpkeepCost = 10;
-const heroReviveCost = 15;
+const heroReviveCost = 50;
 const heroSleepDuration = 10;
 const sausageRainRadius = 2.66;
+const campRewards = [25, 50, 100];
+const campBuffs = [
+  { name: "Heal Team", cost: 25 },
+  { name: "Attack Boost", cost: 35 },
+  { name: "Defense Boost", cost: 35 }
+];
+const abilityDamageScale = 2.5;
+const combatStatScale = 2.5;
+const enemyHpScale = 2.5;
 const abilityCooldownDurations = {
   "Fairy Dust": 6,
   "Solar Burst": 5,
@@ -44,7 +54,7 @@ const abilityCooldownDurations = {
   "Stinky Breath": 3,
   "Void Barrage": 5,
   "Shadow Step": 5,
-  "Sausage Party": 5,
+  "Sausage Party": 7,
   "Inner Light": 1,
   "Space Fart": 3,
   "Selfless Belch": 5
@@ -77,6 +87,8 @@ const cameraControls = {
 };
 let selectedId = "aegis";
 let gold = 60;
+let scoreAdjustments = 0;
+let heroDamageScore = 0;
 let wave = 1;
 let spawnTimer = 0;
 let missionTimer = missionDuration;
@@ -190,7 +202,7 @@ const heroTemplates = [
 const enemyTemplates = [
   { name: "Grub Raider", color: 0xa54939, accent: 0x3a1e18, hp: 62, atk: 4, def: 0, range: 1.8, speed: 2.9, archetype: "raider" },
   { name: "Stone Brute", color: 0x8c6f55, accent: 0x4a3a2f, hp: 98, atk: 6, def: 1, range: 1.7, speed: 2.25, archetype: "brute" },
-  { name: "Hex Imp", color: 0x9b62bd, accent: 0x67d7a2, hp: 48, atk: 5, def: 0, range: 2.4, speed: 3.25, archetype: "caster" }
+  { name: "Hex Imp", color: 0x9b62bd, accent: 0x67d7a2, hp: 48, atk: 5, def: 0, range: 4.5, speed: 3.25, archetype: "caster" }
 ];
 
 init();
@@ -1462,6 +1474,40 @@ function buildEnemyModel(group, data, bodyMat, accentMat, darkMat) {
   }
 }
 
+function buildCampModel(group, bodyMat, accentMat, darkMat) {
+  const platformMat = new THREE.MeshStandardMaterial({ color: 0x3c3358, roughness: 0.72, metalness: 0.08 });
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0xf1d34f, transparent: true, opacity: 0.78 });
+  const platform = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.18, 0.22, 8), platformMat);
+  platform.position.y = 0.12;
+  platform.castShadow = true;
+  platform.receiveShadow = true;
+  group.add(platform);
+
+  const tent = new THREE.Mesh(new THREE.ConeGeometry(0.82, 1.35, 4), bodyMat);
+  tent.position.y = 0.9;
+  tent.rotation.y = Math.PI / 4;
+  tent.castShadow = true;
+  group.add(tent);
+
+  const doorway = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.58, 0.08), darkMat);
+  doorway.position.set(0, 0.52, 0.61);
+  group.add(doorway);
+
+  const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 1.35, 8), accentMat);
+  beacon.position.set(0.78, 0.88, -0.1);
+  beacon.castShadow = true;
+  group.add(beacon);
+
+  const flag = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.34, 0.06), accentMat);
+  flag.position.set(1.03, 1.35, -0.1);
+  flag.castShadow = true;
+  group.add(flag);
+
+  const light = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 8), glowMat);
+  light.position.set(0, 1.82, 0);
+  group.add(light);
+}
+
 function addWeapon(group, type, material, scale = 1) {
   if (type === "sword") {
     const blade = new THREE.Mesh(new THREE.BoxGeometry(0.12 * scale, 1.45 * scale, 0.12 * scale), material);
@@ -1532,6 +1578,8 @@ function resetGame() {
   upkeepWidgets = [];
   selectedId = "leela";
   gold = 0;
+  scoreAdjustments = 0;
+  heroDamageScore = 0;
   wave = 1;
   spawnTimer = 3;
   missionTimer = missionDuration;
@@ -1568,13 +1616,15 @@ function createUnit(data) {
 
   if (data.side === "hero") {
     buildHeroModel(group, data, bodyMat, accentMat, darkMat);
+  } else if (data.side === "camp") {
+    buildCampModel(group, bodyMat, accentMat, darkMat);
   } else {
     buildEnemyModel(group, data, bodyMat, accentMat, darkMat);
   }
 
   const ring = new THREE.Mesh(
     new THREE.TorusGeometry(0.92, 0.045, 8, 36),
-    new THREE.MeshBasicMaterial({ color: data.side === "hero" ? 0x9be7f5 : 0xff8a73 })
+    new THREE.MeshBasicMaterial({ color: data.side === "hero" ? 0x9be7f5 : data.side === "camp" ? 0xf1d34f : 0xff8a73 })
   );
   ring.rotation.x = -Math.PI / 2;
   ring.position.y = 0.07;
@@ -1603,6 +1653,10 @@ function createUnit(data) {
     role: data.role ?? "Invader",
     portrait: data.portrait,
     abilities: data.abilities ?? [],
+    reward: data.reward ?? 0,
+    destroyed: false,
+    underAttackNotified: false,
+    campDamageGoldTicks: 0,
     activeAbility: data.abilities?.[0] ?? null,
     abilityCooldowns: {},
     speedBuffTimer: 0,
@@ -1628,6 +1682,7 @@ function createUnit(data) {
     sausageRainTickTimer: 0,
     sausageRainVisualTimer: 0,
     sausageRainSourceId: null,
+    sausageStunTimer: 0,
     sparklyHealTimer: 0,
     sparklyHealTickTimer: 0,
     sparklyHealVisualTimer: 0,
@@ -1642,14 +1697,15 @@ function createUnit(data) {
     side: data.side,
     level: data.level ?? 1,
     xp: data.side === "hero" ? 0 : undefined,
+    totalXp: data.side === "hero" ? 0 : undefined,
     xpToNext: data.side === "hero" ? xpForNextLevel(data.level ?? 1) : undefined,
     baseMaxHp: data.hp,
-    baseAtk: data.atk,
-    baseDef: data.def ?? 0,
+    baseAtk: data.side === "hero" ? data.atk * combatStatScale : data.atk,
+    baseDef: data.side === "hero" ? (data.def ?? 0) * combatStatScale : data.def ?? 0,
     hp: data.hp,
     maxHp: data.hp,
-    atk: data.atk,
-    def: data.def ?? 0,
+    atk: data.side === "hero" ? Math.round(data.atk * combatStatScale * 10) / 10 : data.atk,
+    def: data.side === "hero" ? Math.round((data.def ?? 0) * combatStatScale * 10) / 10 : data.def ?? 0,
     range: data.range,
     speed: data.speed,
     cooldown: 0,
@@ -1669,11 +1725,12 @@ function createUnit(data) {
 }
 
 function createHealthBar(unitId, side) {
-  const width = side === "hero" ? 2.85 : 1.75;
-  const height = side === "hero" ? 0.42 : 0.26;
+  const wideBar = side === "hero" || side === "camp";
+  const width = wideBar ? 2.85 : 1.75;
+  const height = wideBar ? 0.42 : 0.26;
   const group = new THREE.Group();
   const canvas = document.createElement("canvas");
-  canvas.width = side === "hero" ? 320 : 220;
+  canvas.width = wideBar ? 320 : 220;
   canvas.height = 54;
   const context = canvas.getContext("2d");
   const texture = new THREE.CanvasTexture(canvas);
@@ -1696,7 +1753,7 @@ function updateHealthBars() {
     const { group } = unit.healthBar;
     group.visible = unit.hp > 0 || (unit.side === "hero" && unit.reviveTimer > 0);
     group.position.copy(unit.mesh.position);
-    group.position.y += unit.side === "hero" ? 4.55 : 2.65;
+    group.position.y += unit.side === "hero" ? 4.55 : unit.side === "camp" ? 3.05 : 2.65;
     group.quaternion.copy(camera.quaternion);
     drawHealthBar(unit.healthBar, ratio);
   });
@@ -1741,9 +1798,57 @@ function healthColorCss(ratio) {
 function spawnWave() {
   missionTimer = missionDuration;
   medkitSpawnTimer = 0;
+  spawnFriendlyCamps();
   applyMissionUpkeep();
-  spawnEnemyGroup(3 + Math.min(5, wave), true);
+  spawnEnemyGroup((3 + Math.min(5, wave)) * 2, true);
   spawnTimer = 9;
+  log("Protect the friendly camps!");
+}
+
+function spawnFriendlyCamps() {
+  removeCamps();
+  const positions = shuffledCampPositions();
+  for (let i = 0; i < 3; i += 1) {
+    const position = positions[i];
+    units.push(createUnit({
+      id: `camp-${wave}-${i}-${Date.now()}`,
+      name: "Friendly Camp",
+      role: "Camp",
+      color: 0x5fbf7a,
+      accent: 0xf1d34f,
+      hp: 500,
+      atk: 0,
+      def: 0,
+      range: 0,
+      speed: 0,
+      reward: campRewards[Math.floor(Math.random() * campRewards.length)],
+      side: "camp",
+      x: position.x,
+      z: position.z,
+      level: wave
+    }));
+  }
+}
+
+function shuffledCampPositions() {
+  const options = [
+    { x: -10.8, z: -4.8 },
+    { x: 10.6, z: -5.2 },
+    { x: -8.4, z: 5.8 },
+    { x: 8.2, z: 5.6 },
+    { x: -2.8, z: -7.2 },
+    { x: 4.6, z: 7.2 }
+  ];
+  return options.sort(() => Math.random() - 0.5);
+}
+
+function removeCamps() {
+  units = units.filter((unit) => {
+    if (unit.side !== "camp") return true;
+    scene.remove(unit.mesh);
+    if (unit.healthBar) scene.remove(unit.healthBar.group);
+    return false;
+  });
 }
 
 function applyMissionUpkeep() {
@@ -1822,7 +1927,7 @@ function spawnEnemyGroup(count, announce = false) {
       name: template.name,
       color: template.color,
       accent: template.accent,
-      hp: Math.ceil((template.hp + wave * 9 + (isBrute ? wave * 5 : 0)) * hpScale),
+      hp: Math.ceil((template.hp + wave * 9 + (isBrute ? wave * 5 : 0)) * hpScale * enemyHpScale),
       atk: template.atk + Math.floor(wave / 2),
       def: template.def + Math.floor(wave / 3),
       range: template.range,
@@ -2069,7 +2174,7 @@ function update(dt) {
     }
     spawnTimer -= dt;
     if (spawnTimer <= 0) {
-      spawnEnemyGroup(2 + Math.min(4, Math.floor(wave / 2)));
+      spawnEnemyGroup((2 + Math.min(4, Math.floor(wave / 2))) * 2);
       spawnTimer = Math.max(5.5, 11 - wave * 0.35);
     }
   }
@@ -2182,7 +2287,7 @@ function updateStatusEffects(dt) {
       unit.sausageRainTickTimer -= dt;
       unit.sausageRainVisualTimer -= dt;
       if (unit.sausageRainTickTimer <= 0) {
-        damageEnemy(unit.sausageRainSourceId, unit, 25);
+        damageEnemy(unit.sausageRainSourceId, unit, scaledAbilityDamage(25));
         unit.sausageRainTickTimer = 1;
         flash(unit.mesh.position, 0xe07a32);
       }
@@ -2239,6 +2344,7 @@ function updateRevives(dt) {
 
     hero.hp = Math.ceil(hero.maxHp * 0.65);
     hero.asleep = false;
+    hero.mesh.rotation.x = 0;
     hero.mesh.visible = true;
     if (hero.healthBar) hero.healthBar.group.visible = true;
     if (hero.sleepUi) hero.sleepUi.group.visible = false;
@@ -2252,6 +2358,7 @@ function updateRevives(dt) {
 
 function endMission() {
   if (missionPending) return;
+  resolveCampRewards();
   units = units.filter((unit) => {
     if (unit.side !== "enemy") return true;
     scene.remove(unit.mesh);
@@ -2265,10 +2372,22 @@ function endMission() {
   log("Next mission in 10 seconds.");
 }
 
+function resolveCampRewards() {
+  let saved = 0;
+  camps().forEach((camp) => {
+    saved += 1;
+    scoreAdjustments += 100;
+    gold += camp.reward;
+    goldRoll(camp.mesh.position, `+${camp.reward}G`);
+  });
+  if (saved > 0) log(`${saved} friendly camp${saved === 1 ? "" : "s"} protected!`);
+}
+
 function updateUnit(unit, dt) {
   if (unit.hp <= 0 || unit.asleep) return;
   unit.cooldown = Math.max(0, unit.cooldown - dt);
-  const foes = unit.side === "hero" ? enemies() : heroes();
+  if (unit.side === "camp") return;
+  const foes = unit.side === "hero" ? enemies() : defenders();
   const directTarget = units.find((candidate) => candidate.id === unit.target && candidate.hp > 0);
   const target = directTarget ?? nearest(unit, foes);
 
@@ -2361,6 +2480,10 @@ function damage(attacker, defender) {
     damageEnemy(attacker, actualDefender, amount);
   } else {
     actualDefender.hp -= amount;
+    if (attacker.side === "enemy" && actualDefender.side === "camp" && !actualDefender.underAttackNotified) {
+      actualDefender.underAttackNotified = true;
+      log("A friendly camp is under attack!");
+    }
   }
   flash(actualDefender.mesh.position, attacker.side === "hero" ? 0x9be7f5 : 0xe76d55);
   if (actualDefender !== defender) {
@@ -2384,7 +2507,11 @@ function effectiveAtk(unit) {
 }
 
 function xpForNextLevel(level) {
-  return Math.ceil(200 * Math.pow(1.33, Math.max(0, Math.floor(level) - 1)));
+  return Math.ceil(100 * Math.pow(2.5, Math.max(0, Math.floor(level) - 1)));
+}
+
+function scaledAbilityDamage(amount) {
+  return Math.ceil(amount * abilityDamageScale);
 }
 
 function damageEnemy(source, enemy, amount) {
@@ -2451,7 +2578,7 @@ function damageEnemiesInDashPath(hero, start, end) {
   enemies().forEach((enemy) => {
     if (hero.wingDashHitIds.has(enemy.id)) return;
     if (distancePointToSegment(enemy.mesh.position, start, end) > 0.82) return;
-    damageEnemy(hero, enemy, 35);
+    damageEnemy(hero, enemy, scaledAbilityDamage(35));
     hero.wingDashHitIds.add(enemy.id);
     flash(enemy.mesh.position, 0x9be7f5);
   });
@@ -3113,7 +3240,7 @@ function castFairyDust(hero) {
   }
 
   foes.forEach((enemy) => {
-    damageEnemy(hero, enemy, 50);
+    damageEnemy(hero, enemy, scaledAbilityDamage(50));
     flash(enemy.mesh.position, 0xf1d34f);
   });
   fairyDust(hero);
@@ -3141,7 +3268,7 @@ function castSolarBurst(hero) {
     toEnemy.normalize();
     const dot = direction.dot(toEnemy);
     if (dot < Math.cos(Math.PI / 5)) return;
-    damageEnemy(hero, enemy, 75);
+    damageEnemy(hero, enemy, scaledAbilityDamage(75));
     hits += 1;
     flash(enemy.mesh.position, 0xf6db55);
   });
@@ -3221,7 +3348,7 @@ function castVoidBarrageAt(hero, point) {
     arrowImpact.z += Math.sin(angle) * radius;
     enemies().forEach((enemy) => {
       if (enemy.mesh.position.distanceTo(arrowImpact) > 1) return;
-      damageEnemy(hero, enemy, 25);
+      damageEnemy(hero, enemy, scaledAbilityDamage(25));
       hits += 1;
       flash(enemy.mesh.position, 0x9c59d1);
     });
@@ -3283,7 +3410,7 @@ function castStinkyBreath(hero) {
     if (direction.dot(toEnemy) < Math.cos(Math.PI / 4)) return;
     enemy.burnTimer = 4;
     enemy.burnTickTimer = 1;
-    enemy.burnDamage = 55 / 4;
+    enemy.burnDamage = scaledAbilityDamage(55) / 4;
     enemy.burnSourceId = hero.id;
     hits += 1;
     flash(enemy.mesh.position, 0x8a5a31);
@@ -3336,7 +3463,7 @@ function castInnerLight(hero) {
   });
   enemies().forEach((enemy) => {
     if (enemy.mesh.position.distanceTo(hero.mesh.position) > 3.5) return;
-    damageEnemy(hero, enemy, 25);
+    damageEnemy(hero, enemy, scaledAbilityDamage(25));
     flash(enemy.mesh.position, 0xfff0a6);
     affected += 1;
   });
@@ -3360,7 +3487,7 @@ function castHammerOfLight(hero) {
     toEnemy.y = 0;
     toEnemy.normalize();
     if (direction.dot(toEnemy) < Math.cos(Math.PI / 3)) return;
-    damageEnemy(hero, enemy, 55);
+    damageEnemy(hero, enemy, scaledAbilityDamage(55));
     hits += 1;
     flash(enemy.mesh.position, 0xffe875);
   });
@@ -3380,7 +3507,7 @@ function castSelflessShield(hero) {
     let hits = 0;
     enemies().forEach((enemy) => {
       if (enemy.mesh.position.distanceTo(hero.mesh.position) > 4) return;
-      damageEnemy(hero, enemy, 55);
+      damageEnemy(hero, enemy, scaledAbilityDamage(55));
       hits += 1;
       flash(enemy.mesh.position, 0xd6a65a);
     });
@@ -4348,7 +4475,10 @@ function syncUi() {
   countdownOverlayEl.classList.toggle("show", showCountdown);
 
   const hero = selectedHero();
-  selectedNameEl.textContent = hero ? `${heroDisplayName(hero)} | ${heroStatsHtml(hero)}` : "Choose a hero";
+  const selectedCamp = selectedUnit()?.side === "camp" ? selectedUnit() : null;
+  selectedNameEl.innerHTML = selectedCamp
+    ? campStatsHtml(selectedCamp)
+    : hero ? `${heroDisplayName(hero)} | ${heroStatsHtml(hero)}` : "Choose a hero";
   selectedStatsEl.textContent = "";
   soundBtn.textContent = soundEnabled ? "Effects 🔊" : "Effects 🔇";
   soundBtn.setAttribute("aria-pressed", String(soundEnabled));
@@ -4434,10 +4564,25 @@ function heroDisplayName(hero) {
 }
 
 function heroStatsHtml(hero) {
+  const hpRatio = hero.maxHp > 0 ? hero.hp / hero.maxHp : 0;
   return [
-    `HP ${Math.max(0, Math.ceil(hero.hp))}/${formatStat(hero.maxHp)}`,
-    `XP ${formatStat(hero.xp ?? 0)}/${formatStat(hero.xpToNext ?? xpForNextLevel(hero.level))}`
+    `HP <span class="${hpClass(hpRatio)}">${Math.max(0, Math.ceil(hero.hp))}</span>`,
+    `XP ${formatStat(hero.xp ?? 0)}`,
+    `A ${formatStat(hero.atk)}${bonusMarkup(atkBonus(hero))}`,
+    `D ${formatStat(hero.def)}${bonusMarkup(defBonus(hero))}`
   ].join(" | ");
+}
+
+function campStatsHtml(camp) {
+  const hpRatio = camp.maxHp > 0 ? camp.hp / camp.maxHp : 0;
+  return `Friendly Camp | HP <span class="${hpClass(hpRatio)}">${Math.max(0, Math.ceil(camp.hp))}</span>`;
+}
+
+function hpClass(ratio) {
+  if (ratio < 0.25) return "hp-red";
+  if (ratio < 0.5) return "hp-orange";
+  if (ratio < 0.75) return "hp-yellow";
+  return "hp-green";
 }
 
 function heroMiniStatsHtml(hero) {
@@ -4478,6 +4623,17 @@ function heroes(includeDowned = false) {
 
 function enemies() {
   return units.filter((unit) => unit.side === "enemy" && unit.hp > 0);
+}
+
+function camps() {
+  return units.filter((unit) => unit.side === "camp" && unit.hp > 0);
+}
+
+function defenders() {
+  return units.filter((unit) => (
+    (unit.side === "hero" && unit.hp > 0 && !unit.asleep)
+    || (unit.side === "camp" && unit.hp > 0)
+  ));
 }
 
 function selectedHero(includeDowned = false) {
