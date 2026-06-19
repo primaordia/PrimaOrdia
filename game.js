@@ -1412,9 +1412,11 @@ function createUnit(data) {
     meatBuffTimer: 0,
     burnTimer: 0,
     burnTickTimer: 0,
+    burnSourceId: null,
     sausageRainTimer: 0,
     sausageRainTickTimer: 0,
     sausageRainVisualTimer: 0,
+    sausageRainSourceId: null,
     sparklyHealTimer: 0,
     sparklyHealTickTimer: 0,
     sparklyHealVisualTimer: 0,
@@ -1952,11 +1954,14 @@ function updateStatusEffects(dt) {
       unit.burnTimer = Math.max(0, unit.burnTimer - dt);
       unit.burnTickTimer -= dt;
       if (unit.burnTickTimer <= 0) {
-        unit.hp -= unit.burnDamage ?? 10;
+        damageEnemy(unit.burnSourceId, unit, unit.burnDamage ?? 10);
         unit.burnTickTimer = 1;
         flash(unit.mesh.position, 0x8a5a31);
       }
-      if (unit.burnTimer === 0) unit.burnDamage = 10;
+      if (unit.burnTimer === 0) {
+        unit.burnDamage = 10;
+        unit.burnSourceId = null;
+      }
     }
 
     if (unit.sausageRainTimer > 0) {
@@ -1964,7 +1969,7 @@ function updateStatusEffects(dt) {
       unit.sausageRainTickTimer -= dt;
       unit.sausageRainVisualTimer -= dt;
       if (unit.sausageRainTickTimer <= 0) {
-        unit.hp -= 25;
+        damageEnemy(unit.sausageRainSourceId, unit, 25);
         unit.sausageRainTickTimer = 1;
         flash(unit.mesh.position, 0xe07a32);
       }
@@ -1972,6 +1977,7 @@ function updateStatusEffects(dt) {
         sausageRain(unit.mesh.position);
         unit.sausageRainVisualTimer = 0.34;
       }
+      if (unit.sausageRainTimer === 0) unit.sausageRainSourceId = null;
     }
 
     if (unit.sparklyHealTimer > 0 && unit.hp > 0) {
@@ -2138,7 +2144,11 @@ function damage(attacker, defender) {
   const actualDefender = selflessShieldTarget(defender) ?? defender;
   const rawAttack = attacker.side === "enemy" ? attacker.atk * 0.125 : effectiveAtk(attacker);
   const amount = Math.max(1, Math.ceil(rawAttack - actualDefender.def - (actualDefender.shieldDefBonus ?? 0)));
-  actualDefender.hp -= amount;
+  if (attacker.side === "hero" && actualDefender.side === "enemy") {
+    damageEnemy(attacker, actualDefender, amount);
+  } else {
+    actualDefender.hp -= amount;
+  }
   flash(actualDefender.mesh.position, attacker.side === "hero" ? 0x9be7f5 : 0xe76d55);
   if (actualDefender !== defender) {
     holyLightBurst(defender.mesh.position, 0.85, 0.45);
@@ -2146,7 +2156,6 @@ function damage(attacker, defender) {
   }
   if (defender.hp <= 0 && attacker.side === "hero") {
     gold += 12;
-    awardHeroXp(attacker, xpForEnemy(defender));
     log(`${attacker.name} defeated ${defender.name}.`);
   }
 }
@@ -2161,12 +2170,20 @@ function effectiveAtk(unit) {
   return unit.atk * (unit.atkBuffMultiplier ?? 1);
 }
 
-function xpForEnemy(enemy) {
-  return enemy.archetype === "brute" ? 30 : 10;
-}
-
 function xpForNextLevel(level) {
   return Math.ceil(200 * Math.pow(1.33, Math.max(0, Math.floor(level) - 1)));
+}
+
+function damageEnemy(source, enemy, amount) {
+  if (!enemy || enemy.side !== "enemy" || enemy.hp <= 0 || amount <= 0) return 0;
+  const before = Math.max(0, enemy.hp);
+  enemy.hp = Math.max(0, enemy.hp - amount);
+  const dealt = Math.max(0, before - Math.max(0, enemy.hp));
+  const hero = typeof source === "string"
+    ? units.find((unit) => unit.id === source && unit.side === "hero")
+    : source;
+  if (dealt > 0 && hero?.side === "hero") awardHeroXp(hero, dealt * 0.05);
+  return dealt;
 }
 
 function awardHeroXp(hero, amount) {
@@ -2221,7 +2238,7 @@ function damageEnemiesInDashPath(hero, start, end) {
   enemies().forEach((enemy) => {
     if (hero.wingDashHitIds.has(enemy.id)) return;
     if (distancePointToSegment(enemy.mesh.position, start, end) > 0.82) return;
-    enemy.hp -= 35;
+    damageEnemy(hero, enemy, 35);
     hero.wingDashHitIds.add(enemy.id);
     flash(enemy.mesh.position, 0x9be7f5);
   });
@@ -2304,7 +2321,8 @@ function showNamePopup(unit) {
 
 function createNamePopup(unit) {
   const group = new THREE.Group();
-  const label = createNameTexture(unit.name);
+  const labelText = unit.side === "hero" ? `${unit.name} LVL ${Math.floor(unit.level)}` : unit.name;
+  const label = createNameTexture(labelText);
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
     map: label.texture,
     transparent: true,
@@ -2765,7 +2783,7 @@ function castFairyDust(hero) {
   }
 
   foes.forEach((enemy) => {
-    enemy.hp -= 50;
+    damageEnemy(hero, enemy, 50);
     flash(enemy.mesh.position, 0xf1d34f);
   });
   fairyDust(hero);
@@ -2793,7 +2811,7 @@ function castSolarBurst(hero) {
     toEnemy.normalize();
     const dot = direction.dot(toEnemy);
     if (dot < Math.cos(Math.PI / 5)) return;
-    enemy.hp -= 75;
+    damageEnemy(hero, enemy, 75);
     hits += 1;
     flash(enemy.mesh.position, 0xf6db55);
   });
@@ -2873,7 +2891,7 @@ function castVoidBarrageAt(hero, point) {
     arrowImpact.z += Math.sin(angle) * radius;
     enemies().forEach((enemy) => {
       if (enemy.mesh.position.distanceTo(arrowImpact) > 1) return;
-      enemy.hp -= 25;
+      damageEnemy(hero, enemy, 25);
       hits += 1;
       flash(enemy.mesh.position, 0x9c59d1);
     });
@@ -2936,6 +2954,7 @@ function castStinkyBreath(hero) {
     enemy.burnTimer = 4;
     enemy.burnTickTimer = 1;
     enemy.burnDamage = 55 / 4;
+    enemy.burnSourceId = hero.id;
     hits += 1;
     flash(enemy.mesh.position, 0x8a5a31);
   });
@@ -2960,6 +2979,7 @@ function castSausageRain(hero) {
     enemy.sausageRainTimer = 5;
     enemy.sausageRainTickTimer = 1;
     enemy.sausageRainVisualTimer = 0;
+    enemy.sausageRainSourceId = hero.id;
   });
   heroes().forEach((ally) => {
     if (ally.mesh.position.distanceTo(target.mesh.position) > 4) return;
@@ -2986,7 +3006,7 @@ function castInnerLight(hero) {
   });
   enemies().forEach((enemy) => {
     if (enemy.mesh.position.distanceTo(hero.mesh.position) > 3.5) return;
-    enemy.hp -= 25;
+    damageEnemy(hero, enemy, 25);
     flash(enemy.mesh.position, 0xfff0a6);
     affected += 1;
   });
@@ -3010,7 +3030,7 @@ function castHammerOfLight(hero) {
     toEnemy.y = 0;
     toEnemy.normalize();
     if (direction.dot(toEnemy) < Math.cos(Math.PI / 3)) return;
-    enemy.hp -= 55;
+    damageEnemy(hero, enemy, 55);
     hits += 1;
     flash(enemy.mesh.position, 0xffe875);
   });
@@ -3030,7 +3050,7 @@ function castSelflessShield(hero) {
     let hits = 0;
     enemies().forEach((enemy) => {
       if (enemy.mesh.position.distanceTo(hero.mesh.position) > 4) return;
-      enemy.hp -= 55;
+      damageEnemy(hero, enemy, 55);
       hits += 1;
       flash(enemy.mesh.position, 0xd6a65a);
     });
