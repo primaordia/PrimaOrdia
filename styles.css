@@ -69,6 +69,12 @@ button:disabled {
   display: block;
 }
 
+body.intro-active .game-shell {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
 .intro-screen {
   position: fixed;
   inset: 0;
@@ -77,8 +83,8 @@ button:disabled {
   place-items: end center;
   padding: max(18px, env(safe-area-inset-top)) 18px max(34px, env(safe-area-inset-bottom));
   background:
-    linear-gradient(180deg, rgba(4, 2, 18, 0.05), rgba(4, 2, 18, 0.34) 64%, rgba(4, 2, 18, 0.72)),
-    url("assets/intro.jpg") center / cover no-repeat;
+    linear-gradient(180deg, rgba(4, 2, 18, 0.04), rgba(4, 2, 18, 0.2) 62%, rgba(4, 2, 18, 0.72)),
+    url("assets/intro.png") center / cover no-repeat;
   opacity: 1;
   pointer-events: auto;
   transition: opacity 180ms ease, visibility 180ms ease;
@@ -566,6 +572,21 @@ canvas {
 }
 
 @media (max-width: 560px) {
+  .intro-screen {
+    background:
+      radial-gradient(circle at 50% 12%, rgba(107, 64, 217, 0.34), transparent 34%),
+      linear-gradient(180deg, rgba(4, 2, 18, 0.02), rgba(4, 2, 18, 0.18) 68%, rgba(4, 2, 18, 0.72)),
+      url("assets/intro.png") center / contain no-repeat,
+      linear-gradient(180deg, #060214, #12072a 48%, #05020d);
+    padding: max(12px, env(safe-area-inset-top)) 12px max(22px, env(safe-area-inset-bottom));
+  }
+
+  .start-game-btn {
+    min-width: min(270px, calc(100vw - 40px));
+    min-height: 52px;
+    font-size: 18px;
+  }
+
   .topbar,
   .hud {
     left: 8px;
@@ -607,6 +628,15 @@ canvas {
 
   .actions {
     display: flex;
+  }
+
+  .menu-btn {
+    width: 30px;
+    min-width: 30px;
+  }
+
+  .menu-btn span {
+    width: 14px;
   }
 
   .action-menu__items {

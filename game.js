@@ -236,8 +236,13 @@ function init() {
   menuBtn.addEventListener("click", toggleActionMenu);
   document.addEventListener("pointerdown", closeActionMenuFromPointer);
   document.addEventListener("pointerdown", startBackgroundMusic);
+  document.addEventListener("touchstart", startBackgroundMusic, { passive: true });
+  document.addEventListener("click", startBackgroundMusic);
   introScreenEl.addEventListener("pointerdown", startBackgroundMusic);
+  introScreenEl.addEventListener("touchstart", startBackgroundMusic, { passive: true });
   introBtn.addEventListener("click", showIntro);
+  startGameBtn.addEventListener("pointerdown", startBackgroundMusic);
+  startGameBtn.addEventListener("touchstart", startBackgroundMusic, { passive: true });
   startGameBtn.addEventListener("click", hideIntro);
   soundBtn.addEventListener("click", toggleSound);
   musicBtn.addEventListener("click", toggleMusic);
@@ -306,11 +311,14 @@ function toggleActionMenu(event) {
 
 function showIntro() {
   setActionMenuOpen(false);
+  document.body.classList.add("intro-active");
   introScreenEl.classList.remove("hidden");
+  startBackgroundMusic();
 }
 
 function hideIntro() {
   introScreenEl.classList.add("hidden");
+  document.body.classList.remove("intro-active");
   if (!gameStarted) {
     gameStarted = true;
     resetGame();
