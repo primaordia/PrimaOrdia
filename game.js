@@ -7,6 +7,7 @@ const abilitiesPanelEl = document.querySelector("#abilitiesPanel");
 const countdownOverlayEl = document.querySelector("#countdownOverlay");
 const selectedNameEl = document.querySelector("#selectedName");
 const selectedStatsEl = document.querySelector("#selectedStats");
+const hudEl = document.querySelector(".hud");
 const logEl = document.querySelector("#log");
 const goldEl = document.querySelector("#gold");
 const waveEl = document.querySelector("#wave");
@@ -1496,7 +1497,7 @@ function resetGame() {
   heroTemplates.forEach((template, index) => {
     const slot = heroStartSlots[template.id] ?? index;
     const x = (slot - (heroTemplates.length - 1) / 2) * 3.1;
-    units.push(createUnit({ ...template, side: "hero", x, z: 9.4, level: 1 }));
+    units.push(createUnit({ ...template, side: "hero", x, z: 12.2, level: 1 }));
   });
 
   spawnWave();
@@ -4348,6 +4349,14 @@ function syncUi() {
     });
     squadEl.appendChild(card);
   });
+  updateNotificationPosition();
+}
+
+function updateNotificationPosition() {
+  if (!hudEl) return;
+  const hudRect = hudEl.getBoundingClientRect();
+  const bottom = Math.max(96, window.innerHeight - hudRect.top + 8);
+  document.documentElement.style.setProperty("--notification-bottom", `${Math.round(bottom)}px`);
 }
 
 function sortedHeroesForHud() {
@@ -4425,6 +4434,7 @@ function resize() {
   renderer.setSize(viewportWidth, viewportHeight, false);
   document.body.classList.toggle("portrait", viewportIsPortrait);
   updateCameraFrame();
+  updateNotificationPosition();
 }
 
 function updateCameraFrame() {

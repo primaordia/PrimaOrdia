@@ -513,7 +513,7 @@ canvas {
 .log {
   position: fixed;
   left: 50%;
-  bottom: 366px;
+  bottom: var(--notification-bottom, 244px);
   z-index: 8;
   max-width: min(560px, calc(100vw - 32px));
   min-height: 22px;
@@ -601,7 +601,6 @@ canvas {
   }
 
   .log {
-    bottom: 322px;
     font-size: 13px;
   }
 }
@@ -690,7 +689,6 @@ canvas {
   }
 
   .log {
-    bottom: 322px;
     font-size: 13px;
   }
 }
@@ -705,7 +703,7 @@ canvas {
   }
 
   .log {
-    bottom: 310px;
+    font-size: 12px;
   }
 
   .topbar {
