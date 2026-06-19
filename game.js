@@ -2325,7 +2325,7 @@ function showNamePopup(unit) {
 
 function createNamePopup(unit) {
   const group = new THREE.Group();
-  const labelText = unit.side === "hero" ? `${unit.name} LVL ${Math.floor(unit.level)}` : unit.name;
+  const labelText = unit.side === "hero" ? `${unit.name} (Level ${Math.floor(unit.level)})` : unit.name;
   const label = createNameTexture(labelText);
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
     map: label.texture,
